@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personel Yönetimi</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #fff; color: #333; }
+        .form-container { max-width: 350px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-radius: 12px; border: none; border-radius: 8px; background-color: #fafafa; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="email"], select {
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+        button {
+            width: 100%; padding: 8px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 15px; cursor: pointer;
+        }
+        button:hover { background-color: #2980b9; }
+        
+        /* Mesaj kutusu stilleri */
+        #mesajKutusu { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .personel-liste-kutusu {
+            max-width: 900px;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-radius: 12px; border: none;
+            border-radius: 8px;
+        }
+        .tablo-scroll-alani {
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 4px;
+        }
+        
+        .tablo-scroll-alani table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .tablo-scroll-alani th, .tablo-scroll-alani td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+    </style>
+    <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    <h2>PERSONEL İŞLEMLERİ</h2>
+
+    <div class="form-container">
+        <form id="personelEkleFormu">
+            <div class="form-group">
+                <label>Ad</label>
+                <input type="hidden" id="guncellenecek_kisi_id">
+                <input type="text" id="ad" name="ad" maxlength="50" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Soyad</label>
+                <input type="text" id="soyad" name="soyad" maxlength="50" required>
+            </div>
+
+            <div class="form-group">
+                <label>E-posta</label>
+                <input type="email" id="e_posta" name="e_posta" maxlength="50" required>
+            </div>
+
+           <div class="form-group">
+                <label>Durum</label>
+                <select id="durum" name="durum" required>
+                    <option value="Aktif">Aktif</option>
+                    <option value="Pasif">Pasif</option>
+                </select>
+            </div>
+
+            <button type="submit">Personeli Kaydet</button>
+        </form>
+
+        <div id="mesajKutusu"></div>
+        
+    </div> <!-- Form container bitişi (Fazladan olan div BURADAN silindi) -->
+
+    
+    <div class="personel-liste-kutusu">
+    <!-- flex-direction: column eklenip zıt köşelere iten ayarlar silindi, gap ile araya boşluk kondu -->
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+        <h4 style="margin: 0;">Personel Listesi</h4>
+        <!-- Arama Kutusu -->
+        <input type="text" id="personelAramaInput" placeholder="İsim ile ara..." onkeyup="personelAra()" style="width: 200px; padding: 6px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;">
+    </div>
+    
+    <div class="tablo-scroll-alani">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Ad Soyad</th>
+                    <th>E-Posta</th>
+                    <th>Durum</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody id="personelTablosu">
+                <!-- Veriler JavaScript ile buraya dolacak -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Sayfalama (Pagination) Butonları İçin Alan -->
+    <div id="sayfalamaKutusu" style="margin-top: 15px; display: flex; gap: 5px; justify-content: flex-end;"></div>
+</div>
+
+<script>
+        // Form gönderme (Ekleme veya Güncelleme) işlemi
+        document.getElementById('personelEkleFormu').addEventListener('submit', async function(e) {
+            e.preventDefault(); // Sayfanın yenilenmesini engeller
+
+            // Gizli id alanındaki değeri alıyoruz (Düzenle'ye basıldıysa dolu olur)
+            const gizliId = document.getElementById('guncellenecek_kisi_id').value;
+
+            // Formdaki verileri alıyoruz
+            const formData = {
+                kisi_id: document.getElementById('guncellenecek_kisi_id').value,
+                ad: document.getElementById('ad').value,
+                soyad: document.getElementById('soyad').value,
+                e_posta: document.getElementById('e_posta').value,
+                durum: document.getElementById('durum').value
+            };
+
+            // Eğer düzenleme yapılıyorsa, backend'e kisi_id bilgisini de gönder
+            if (gizliId) {
+                formData.kisi_id = gizliId; 
+            }
+
+            const mesajKutusu = document.getElementById('mesajKutusu');
+            
+            // ID varsa güncelleme URL'sine, yoksa ekleme URL'sine istek atıyoruz
+            const fetchUrl = gizliId ? '/api/personeller/guncelle' : '/api/personeller/ekle';
+
+            try {
+                // Fetch API ile arka uca POST isteği atıyoruz
+                const response = await fetch(fetchUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    // İşlem başarılıysa
+                    mesajKutusu.className = 'basarili';
+                    mesajKutusu.innerHTML = gizliId ? 'Personel başarıyla güncellendi!' : result.message;
+                    
+                    // Formu ve gizli ID'yi temizle
+                    document.getElementById('personelEkleFormu').reset();
+                    document.getElementById('guncellenecek_kisi_id').value = ''; 
+                    
+                    // Buton adını eski haline getir
+                    document.querySelector('#personelEkleFormu button[type="submit"]').innerText = 'Personeli Kaydet';
+
+                    // SAYFA YENİLENMEDEN LİSTEYİ OTOMATİK GÜNCELLE
+                    personelleriGetir(); 
+                } else {
+                    // Validasyon veya sunucu hatası varsa
+                    mesajKutusu.className = 'hatali';
+                    if (result.errors) {
+                        mesajKutusu.innerHTML = result.errors.map(err => err.msg).join('<br>');
+                    } else {
+                        mesajKutusu.innerHTML = result.message || 'Bir hata oluştu.';
+                    }
+                }
+            } catch (error) {
+                console.error("İstek atılırken hata:", error);
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'hatali';
+                mesajKutusu.innerHTML = 'Sunucuyla bağlantı kurulamadı.';
+            }
+        });
+        
+        // Sayfa açıldığında personelleri getir
+            let tumPersoneller = []; // Tüm veriyi tutacağımız dizi
+            let aktifSayfa = 1;
+            const kayitLimiti = 5; // Sayfa başına gösterilecek personel sayısı (istediğin gibi değiştirebilirsin)
+
+        document.addEventListener('DOMContentLoaded', personelleriGetir);
+
+        async function personelleriGetir() {
+            try {
+                const response = await fetch('/api/personeller/liste');
+                const result = await response.json();
+
+                if (result.success) {
+                    tumPersoneller = result.data;
+                    tabloyuCiz(tumPersoneller); // Veriyi çekince tabloyu çiz
+                }
+            } catch (error) {
+                console.error('Listeleme hatası:', error);
+            }
+        }
+
+// 1. Arama Fonksiyonu
+function personelAra() {
+    const aranan = document.getElementById('personelAramaInput').value.toLowerCase();
+    const filtrelenmis = tumPersoneller.filter(p => 
+        `${p.ad} ${p.soyad}`.toLowerCase().includes(aranan) || 
+        p.e_posta.toLowerCase().includes(aranan)
+    );
+    aktifSayfa = 1; // Arama yapıldığında 1. sayfaya dön
+    tabloyuCiz(filtrelenmis);
+}
+
+// 2. Tabloyu ve Sayfalamayı Çizme Fonksiyonu
+        function tabloyuCiz(gosterilecekVeri = tumPersoneller) {
+            const tablo = document.getElementById('personelTablosu');
+            tablo.innerHTML = '';
+
+            if (gosterilecekVeri.length === 0) {
+                tablo.innerHTML = '<tr><td colspan="4" style="padding: 10px; text-align: center; color: red;">Personel bulunamadı</td></tr>';
+                document.getElementById('sayfalamaKutusu').innerHTML = '';
+                return;
+            }
+
+            // Sayfalama (Pagination) Hesaplamaları
+            const toplamSayfa = Math.ceil(gosterilecekVeri.length / kayitLimiti);
+            if (aktifSayfa > toplamSayfa) aktifSayfa = toplamSayfa;
+
+            const baslangicIndex = (aktifSayfa - 1) * kayitLimiti;
+            const sayfadakiVeriler = gosterilecekVeri.slice(baslangicIndex, baslangicIndex + kayitLimiti);
+
+            // Ekrana Sadece İlgili Sayfadaki Verileri Bas
+            sayfadakiVeriler.forEach(personel => {
+                const durumMetin = personel.durum || 'Aktif';
+                tablo.innerHTML += `
+                    <tr>
+                        <td class="fw-bold">${personel.ad} ${personel.soyad}</td>
+                        <td>${personel.e_posta}</td>
+                        <td>${durumMetin}</td>
+                        <td>
+                            <button onclick="duzenleModunaGec(${personel.kisi_id}, '${personel.ad}', '${personel.soyad}', '${personel.e_posta}', '${personel.durum}')" class="btn btn-primary btn-sm" style="padding: 5px 10px; font-size: 13px; border: none; border-radius: 4px; background-color: #3498db; color: white; cursor: pointer;">
+                                Düzenle
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            sayfalamaButonlariniCiz(toplamSayfa);
+        }
+
+        // 3. Sayfalama Butonlarını Oluşturma
+        function sayfalamaButonlariniCiz(toplamSayfa) {
+            const kutu = document.getElementById('sayfalamaKutusu');
+            kutu.innerHTML = '';
+
+            if (toplamSayfa <= 1) return;
+
+            for (let i = 1; i <= toplamSayfa; i++) {
+                const aktifMi = (i === aktifSayfa);
+                kutu.innerHTML += `
+                   <button type="button" onclick="sayfaDegistir(${i})" style="width: 32px; height: 32px; padding: 0; display: inline-flex; justify-content: center; align-items: center; border: 1px solid ${aktifMi ? '#3498db' : '#ccc'}; border-radius: 4px; cursor: pointer; background: ${aktifMi ? '#3498db' : '#fff'}; color: ${aktifMi ? '#fff' : '#333'}; font-size: 14px; margin: 0;">
+                    ${i}
+                    </button>
+                `;
+            }
+        }
+
+        // 4. Sayfa Değiştirme Tetikleyicisi
+        function sayfaDegistir(sayfaNo) {
+            aktifSayfa = sayfaNo;
+            
+            // Eğer arama kutusunda bir kelime varsa ona göre sayfala, yoksa tüm veriyi sayfala
+            const aranan = document.getElementById('personelAramaInput').value;
+            if (aranan) {
+                personelAra();
+            } else {
+                tabloyuCiz(tumPersoneller);
+            }
+        }
+        // Tablodan Düzenle'ye basınca formu doldurur
+        function duzenleModunaGec(kisi_id, ad, soyad, eposta,durum) {
+            document.getElementById('guncellenecek_kisi_id').value = kisi_id;
+            document.querySelector('input[name="ad"]').value = ad; 
+            document.querySelector('input[name="soyad"]').value = soyad;
+            document.querySelector('input[name="e_posta"]').value = eposta;
+            
+            document.getElementById('durum').value = durum;
+            // Güncelleme moduna geçildiğini belli etmek için buton metnini değiştir
+            document.querySelector('#personelEkleFormu button[type="submit"]').innerText = "Değişiklikleri Kaydet";
+        }
+
+        // Tablodan Aktif/Pasif butonuna basınca anında değiştirir
+        async function durumDegistir(kisi_id, yeni_durum) {
+            try {
+                const response = await fetch('/api/personeller/durum-degistir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kisi_id, yeni_durum })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    personelleriGetir(); // Tabloyu sayfa yenilenmeden anında günceller
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                alert('Durum güncellenirken bir hata oluştu.');
+            }
+        }
+    </script>
+</body>
+</html>

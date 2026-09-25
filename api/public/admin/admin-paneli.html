@@ -1,0 +1,797 @@
+<!--DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Paneli - Personel Takip</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f7f6; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        input, select { padding: 8px; margin-right: 10px; width: 200px; }
+        button { padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button.delete { background-color: #dc3545; }
+    </style>
+     <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    
+    <div class="container">
+        <h2>Şirket Yönetimi (Ekle / Listele / Sil)</h2>
+        <form id="sirketForm">
+            <input type="text" id="sirketAdi" placeholder="Yeni Şirket Adı" maxlength="50" required>
+            <button type="submit">Şirket Ekle</button>
+        </form>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Şirket ID</th>
+                    <th>Şirket Adı</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody id="sirketListesi">
+                
+            </tbody>
+        </table>
+    </div>
+
+  
+    <div class="container">
+        <h2>Yetkili / Kullanıcı Atama</h2>
+        <form id="yetkiliForm">
+            <input type="text" id="ad" placeholder="Ad" maxlength="50" required>
+            <input type="text" id="soyad" placeholder="Soyad" maxlength="50" required>
+            <input type="email" id="eposta" placeholder="E-posta" maxlength="50" required>
+            <input type="password" id="sifre" placeholder="Şifre" maxlength="50" required>
+            <input type="number" id="sirketId" placeholder="Şirket ID" min="1" required>
+            <select id="tipId" required>
+                <option value="">Tip Seçiniz</option>
+                <option value="1">Personel</option>
+                <option value="2">Yetkili</option>
+                <option value="3">Admin</option>
+            </select>
+            <button type="submit">Kullanıcı / Yetkili Ekle</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <h2>Şirket Parametreleri Tanımlama</h2>
+        <form id="parametreForm">
+            <div style="margin-bottom: 15px;">
+                <label><b>Şirket Seçin:</b></label><br>
+                <select id="parametreSirketSec" required style="width: 100%; max-width: 300px; margin-top: 5px;">
+                    <option value="">Önce Şirket Seçin</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+                <div>
+                    <label>Mesai Giriş Saati:</label><br>
+                    <input type="time" id="mesaiGiris" required style="margin-top: 5px;">
+                </div>
+                <div>
+                    <label>Mesai Çıkış Saati:</label><br>
+                    <input type="time" id="mesaiCikis" required style="margin-top: 5px;">
+                </div>
+                <div>
+                    <label>Mola Başlangıç Saati:</label><br>
+                    <input type="time" id="molaBaslangic" style="margin-top: 5px;">
+                </div>
+                <div>
+                    <label>Mola Bitiş Saati:</label><br>
+                    <input type="time" id="molaBitis" style="margin-top: 5px;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
+                <div>
+                    <label>Mesai Tolerans (dk):</label><br>
+                    <input type="number" id="toleransMesai" min="0" placeholder="Örn: 15" style="margin-top: 5px;">
+                </div>
+                <div>
+                    <label>Mola Tolerans (dk):</label><br>
+                    <input type="number" id="toleransMola" min="0" placeholder="Örn: 5" style="margin-top: 5px;">
+                </div>
+                <div>
+                    <label>Mola Tolerans Üst Limit (dk):</label><br>
+                    <input type="number" id="molaToleransUstLimit" min="0" placeholder="Örn: 30" style="margin-top: 5px;">
+                </div>
+            </div>
+
+            <button type="submit">Parametreleri Kaydet / Güncelle</button>
+        </form>
+    </div>
+      
+    <script>
+        // Sayfa açıldığında şirketleri getir ve tabloya doldur
+        async function sirketleriYukle() {
+            try {
+                const response = await fetch('/api/sirket/liste');
+                const sirketler = await response.json();
+                
+                const tbody = document.getElementById('sirketListesi');
+                tbody.innerHTML = '';
+
+                const selectSirket = document.getElementById('parametreSirketSec');
+                selectSirket.innerHTML = '<option value="">Önce Şirket Seçin</option>';
+
+                sirketler.forEach(sirket => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${sirket.sirket_id}</td>
+                            <td>${sirket.sirket_adi}</td>
+                            <td><button class="delete" onclick="sirketSil(${sirket.sirket_id})">Sil</button></td>
+                        </tr>
+                    `;
+
+                    selectSirket.innerHTML += `
+                        <option value="${sirket.sirket_id}">${sirket.sirket_adi}</option>
+                    `;
+                });
+            } catch (error) {
+                console.error("Şirketler yüklenirken hata:", error);
+            }
+        }
+
+        // Şirket Ekleme Formu Gönderildiğinde
+        document.getElementById('sirketForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const sirketAdi = document.getElementById('sirketAdi').value;
+
+            const response = await fetch('/api/sirket/ekle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sirket_adi: sirketAdi })
+            });
+
+            const sonuc = await response.json();
+            if (sonuc.success) {
+                document.getElementById('sirketAdi').value = '';
+                sirketleriYukle();
+            } else {
+                alert(sonuc.message);
+            }
+        });
+
+        // Şirket Silme Fonksiyonu
+        async function sirketSil(id) {
+            if (!confirm("Bu şirketi silmek istediğinize emin misiniz?")) return;
+
+            const response = await fetch(`/api/sirket/sil/${id}`, { method: 'DELETE' });
+            const sonuc = await response.json();
+            if (sonuc.success) {
+                sirketleriYukle();
+            } else {
+                alert(sonuc.message);
+            }
+        }
+
+        // Sayfa yüklenince çalıştır
+        window.onload = sirketleriYukle;
+
+        // Yetkili ekleme formu gönderildiğinde
+        document.getElementById('yetkiliForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const veri = {
+                ad: document.getElementById('ad').value,
+                soyad: document.getElementById('soyad').value,
+                e_posta: document.getElementById('eposta').value,
+                sifre: document.getElementById('sifre').value,
+                sirket_id: document.getElementById('sirketId').value,
+                tip_id: document.getElementById('tipId').value
+            };
+
+            const response = await fetch('/api/sirket/kullanici-ekle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(veri)
+            });
+
+            const sonuc = await response.json();
+            if (sonuc.success) {
+                alert(sonuc.message);
+                document.getElementById('yetkiliForm').reset();
+            } else {
+                alert(sonuc.message);
+            }
+        });
+
+        // Parametre Formu Gönderildiğinde (Güncelleme)
+        document.getElementById('parametreForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const veri = {
+                sirket_id: document.getElementById('parametreSirketSec').value,
+                mesai_giris: document.getElementById('mesaiGiris').value,
+                mesai_cikis: document.getElementById('mesaiCikis').value,
+                mola_baslangic: document.getElementById('molaBaslangic').value,
+                mola_bitis: document.getElementById('molaBitis').value,
+                tolerans_mesai: document.getElementById('toleransMesai').value,
+                tolerans_mola: document.getElementById('toleransMola').value,
+                mola_tolerans_ust_limit: document.getElementById('molaToleransUstLimit').value
+            };
+
+            const response = await fetch('/api/sirket/parametre-guncelle', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(veri)
+            });
+
+            const sonuc = await response.json();
+            if (sonuc.success) {
+                alert(sonuc.message);
+                document.getElementById('parametreForm').reset();
+            } else {
+                alert(sonuc.message);
+            }
+        });
+        // Şirket seçildiğinde mevcut parametreleri inputlara doldur
+        document.getElementById('parametreSirketSec').addEventListener('change', async function() {
+            const sirketId = this.value;
+            const form = document.getElementById('parametreForm');
+            
+            if (!sirketId) {
+                form.reset();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/sirket/parametre/${sirketId}`);
+                const data = await response.json();
+                
+                if (data) {
+                    document.getElementById('mesaiGiris').value = data.mesai_giris || '';
+                    document.getElementById('mesaiCikis').value = data.mesai_cikis || '';
+                    document.getElementById('molaBaslangic').value = data.mola_baslangic || '';
+                    document.getElementById('molaBitis').value = data.mola_bitis || '';
+                    document.getElementById('toleransMesai').value = data.tolerans_mesai || '';
+                    document.getElementById('toleransMola').value = data.tolerans_mola || '';
+                    document.getElementById('molaToleransUstLimit').value = data.mola_tolerans_ust_limit || '';
+                }
+            } catch (error) {
+                console.error("Parametreler getirilemedi:", error);
+            }
+        });
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Yöneticisi Paneli</title>
+    <style>
+        /* GENEL SAYFA TASARIMI */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            display: flex;
+            height: 100vh;
+            overflow: hidden; /* Dış kaydırma çubuğunu gizle */
+        }
+
+        /* SOL MENÜ (SIDEBAR) TASARIMI */
+        .sidebar {
+            width: 250px;
+            background-color: #2c3e50; /* Koyu lacivert/gri profesyonel ton */
+            color: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            text-align: center;
+            background-color: #1a252f;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: #bdc3c7;
+            padding: 15px 20px;
+            text-align: left;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .menu-btn:hover {
+            background-color: #34495e;
+            color: white;
+        }
+
+        .menu-btn.active {
+            background-color: #34495e;
+            color: white;
+            border-left: 4px solid #3498db; /* Aktif menü mavi çizgisi */
+            font-weight: bold;
+        }
+
+        /* SAĞ İÇERİK ALANI */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto; /* Sadece sağ taraf kaydırılabilir olsun */
+        }
+
+        /* SEKMELERİ GİZLEME/GÖSTERME MANTIĞI */
+        .tab-content {
+            display: none; /* Varsayılan olarak tüm sekmeler gizli */
+            animation: fadeIn 0.4s ease; /* Yumuşak geçiş animasyonu */
+        }
+
+        .tab-content.active {
+            display: block; /* Sadece active class'ı olan görünür */
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* İÇERİK KARTLARI (Önceki Tasarımdan Gelenler) */
+        .card-container {
+            background-color: #ffffff;
+            padding: 20px; 
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            max-width: 1200px;
+            margin-bottom: 20px; 
+            border: 1px solid #e3e6f0;
+        }
+
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #eee; padding-bottom: 8px; color: #333; }
+        label { font-size: 0.85rem; font-weight: 600; color: #444; }
+        
+        input[type="text"], input[type="time"], input[type="number"], select {
+            width: 100%; padding: 6px 10px; margin-top: 4px;
+            border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem;
+        }
+        input:focus, select:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); }
+
+        .form-row { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 12px; }
+        .form-group { flex: 1; min-width: 150px; }
+
+        .btn { padding: 6px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; font-weight: bold; color: white; }
+        .btn-green { background-color: #28a745; } .btn-green:hover { background-color: #218838; }
+        .btn-red { background-color: #dc3545; padding: 4px 10px; font-size: 0.8rem;} .btn-red:hover { background-color: #c82333; }
+        .btn-blue { background-color: #17a2b8; padding: 4px 10px; font-size: 0.8rem;} .btn-blue:hover { background-color: #138496; }
+        .btn-gray { background-color: #6c757d; } .btn-gray:hover { background-color: #5a6268; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background-color: #0d6efd; color: white; text-align: left; padding: 10px; font-size: 0.9rem; border: 1px solid #0b5ed7; }
+        td { padding: 10px; border: 1px solid #dee2e6; font-size: 0.85rem; vertical-align: middle; }
+        tr:nth-child(even) { background-color: #f8f9fa; } tr:hover { background-color: #f1f3f5; }
+        #personelTabloKutusu {
+        max-height: 250px; /* Liste uzarsa en fazla bu yükseklikte olacak */
+        overflow-y: auto;  /* Dikey kaydırma çubuğu (scroll) aktif olacak */
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    </style>
+</head>
+<body>
+
+    <!-- SOL MENÜ -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            Sistem Yöneticisi
+        </div>
+        <!-- onclick ile sekme değiştirme fonksiyonunu çağırıyoruz -->
+        <button class="menu-btn active" onclick="sekmeDegistir('sirketBolumu', this)">🏢 Şirket Parametreleri</button>
+        <button class="menu-btn" onclick="sekmeDegistir('yetkiliBolumu', this)">👨‍💼 Yetkili Atama</button>
+    </div>
+
+    <!-- SAĞ İÇERİK ALANI -->
+    <div class="main-content">
+
+        <!-- 1. SEKME: ŞİRKET YÖNETİMİ -->
+        <div id="sirketBolumu" class="tab-content active">
+            <div class="card-container">
+                <h2>Şirket Parametreleri Tanımlama ve Yönetimi</h2>
+                <form id="parametreForm">
+                    <input type="hidden" id="sirketId">
+                    <div class="form-group" style="max-width: 300px; margin-bottom: 20px;">
+                        <label>Şirket Adı:</label>
+                        <input type="text" id="sirketAdi" maxlength="50" pattern="^[a-zA-Z0-9ğüşıöçĞÜŞİÖÇ\s]+$" required placeholder="Örn: SDD Bilgisayar">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Mesai Giriş Saati:</label><input type="time" id="mesaiGiris" required></div>
+                        <div class="form-group"><label>Mesai Çıkış Saati:</label><input type="time" id="mesaiCikis" required></div>
+                        <div class="form-group"><label>Mola Başlangıç Saati:</label><input type="time" id="molaBaslangic" required></div>
+                        <div class="form-group"><label>Mola Bitiş Saati:</label><input type="time" id="molaBitis" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Mesai Tolerans (dk):</label><input type="number" id="toleransMesai" min="0" placeholder="Örn: 15"></div>
+                        <div class="form-group"><label>Mola Tolerans (dk):</label><input type="number" id="toleransMola" min="0" placeholder="Örn: 5"></div>
+                        <div class="form-group"><label>Mola Tolerans Üst Limit (dk):</label><input type="number" id="molaToleransUstLimit" min="0" placeholder="Örn: 30"></div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button type="submit" class="btn btn-green" id="submitBtn">Kaydet / Güncelle</button>
+                        <button type="button" class="btn btn-gray" id="iptalBtn" style="display:none;" onclick="formuSifirla()">İptal</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card-container">
+                <h2>Kayıtlı Şirketler Listesi</h2>
+                <div style="overflow-x:auto;">
+                    <table id="sirketTablosu">
+                        <thead>
+                            <tr>
+                                <th>Şirket Adı</th><th>Mesai</th><th>Mola</th><th>Tolerans(Ms)</th><th>Tolerans(Ml)</th><th>Üst Limit</th><th style="width: 130px;">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody><!-- JS ile dolacak --></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. SEKME: YETKİLİ ATAMA -->
+        <div id="yetkiliBolumu" class="tab-content">
+            <div class="card-container">
+                <h2>Yetkili / Kullanıcı Atama ve Yönetimi</h2>
+                
+                <!-- 1. Aşama: Şirket Seçimi -->
+                <div class="form-group" style="max-width: 350px; margin-bottom: 20px;">
+                    <label><b>İşlem Yapılacak Şirketi Seçin:</b></label>
+                    <select id="yetkiliSirketSec" onchange="sirketSecildiIslemi()" style="margin-top: 5px;">
+                        <option value="">-- Önce Şirket Seçiniz --</option>
+                    </select>
+                </div>
+
+                <!-- 2. Aşama: Şirket Seçilince Açılacak Form ve Liste Alanı (Başta Gizli) -->
+                <div id="yetkiliFormVeListeAlani" style="display: none;">
+                    
+                    <!-- Yetkili Ekle / Güncelle Formu -->
+                    <form id="yetkiliForm" style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd; margin-bottom: 20px;">
+                        <input type="hidden" id="kisiId">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Ad:</label>
+                                <input type="text" id="yetkiliAd" pattern="^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$" required placeholder="Örn: Ahmet">
+                            </div>
+                            <div class="form-group">
+                                <label>Soyad:</label>
+                                <input type="text" id="yetkiliSoyad" pattern="^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$" required placeholder="Örn: Yılmaz">
+                            </div>
+                            <div class="form-group">
+                                <label>E-posta:</label>
+                                <input type="text" id="yetkiliEposta" required placeholder="ornek@sirket.com">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Şifre:</label>
+                                <input type="text" id="yetkiliSifre" placeholder="Şifre giriniz (Opsiyonel)">
+                            </div>
+                            <div class="form-group">
+                                <label>Kullanıcı Tipi (Rol):</label>
+                                <select id="yetkiliTipId" onchange="rolDegistiKontrol()" required>
+                                    <option value="">Tip Seçiniz</option>
+                                    <option value="1">Personel</option>
+                                    <option value="2">Yetkili</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 10px;">
+                            <button type="submit" class="btn btn-green" id="yetkiliSubmitBtn">Yetkiliyi Kaydet / Ata</button>
+                            <button type="button" class="btn btn-gray" id="yetkiliIptalBtn" style="display:none;" onclick="yetkiliFormunuSifirla()">İptal</button>
+                        </div>
+                    </form>
+
+                    <!-- Personel Listesini Aç/Kapa Butonu -->
+                    <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1rem; color: #333;">Şirket Personel ve Yetkili Listesi</h3>
+                        <button type="button" class="btn btn-blue" onclick="personelListesiniAcKapat()">Listeyi Göster / Gizle</button>
+                    </div>
+
+                    <!-- Personel Tablosu (Başta Gizli) -->
+                    <div id="personelTabloKutusu" style="display: none; overflow-x:auto;">
+                        <table id="personelTablosu">
+                            <thead>
+                                <tr style="background-color: #6c757d;">
+                                    <th>Ad</th>
+                                    <th>Soyad</th>
+                                    <th>E-posta</th>
+                                    <th>Şifre</th>
+                                    <th>Kullanıcı Tipi</th>
+                                    <th style="width: 100px;">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- JS ile dolacak -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    <!-- JAVASCRIPT KODLARI -->
+    <script>
+        // SEKME GEÇİŞ FONKSİYONU
+        function sekmeDegistir(sekmeId, tiklananButon) {
+            // Tüm sekmeleri gizle
+            document.querySelectorAll('.tab-content').forEach(sekme => {
+                sekme.classList.remove('active');
+            });
+            // Tüm menü butonlarındaki aktifliği kaldır
+            document.querySelectorAll('.menu-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Seçilen sekmeyi göster ve tıklanan butonu aktif yap
+            document.getElementById(sekmeId).classList.add('active');
+            tiklananButon.classList.add('active');
+        }
+
+        // --- AŞAĞISI ÖNCEKİ ŞİRKET İŞLEMLERİ KODLARININ AYNISIDIR ---
+        document.addEventListener("DOMContentLoaded", () => {
+            sirketleriYukle();
+            yetkiliSayfasiSirketleriDoldur();
+        });
+        const parametreForm = document.getElementById("parametreForm");
+
+        parametreForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const veri = {
+                sirket_id: document.getElementById("sirketId").value,
+                sirket_adi: document.getElementById("sirketAdi").value,
+                mesai_giris: document.getElementById("mesaiGiris").value,
+                mesai_cikis: document.getElementById("mesaiCikis").value,
+                mola_baslangic: document.getElementById("molaBaslangic").value,
+                mola_bitis: document.getElementById("molaBitis").value,
+                tolerans_mesai: document.getElementById("toleransMesai").value || 0,
+                tolerans_mola: document.getElementById("toleransMola").value || 0,
+                mola_tolerans_ust_limit: document.getElementById("molaToleransUstLimit").value || 0
+            };
+
+           try {
+                const response = await fetch('/api/sirketler/kaydet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(veri) });
+                const data = await response.json();
+                if (!response.ok) { alert("Hata: " + data.error); return; }
+                alert(data.message);
+                formuSifirla();
+                sirketleriYukle(); 
+                
+                // BURAYA BU SATIRI EKLE:
+                yetkiliSayfasiSirketleriDoldur(); 
+            } catch (error) { alert("Sunucu ile iletişim kurulamadı."); }
+        });
+
+        async function sirketleriYukle() {
+            const tbody = document.querySelector("#sirketTablosu tbody");
+            tbody.innerHTML = ""; 
+            try {
+                const response = await fetch('/api/sirketler');
+                if (!response.ok) return;
+                const sirketler = await response.json();
+                sirketler.forEach(sirket => {
+                    const mGiris = sirket.mesai_giris ? String(sirket.mesai_giris).substring(0, 5) : '-';
+                    const mCikis = sirket.mesai_cikis ? String(sirket.mesai_cikis).substring(0, 5) : '-';
+                    const molaBas = sirket.mola_baslangic ? String(sirket.mola_baslangic).substring(0, 5) : '-';
+                    const molaBit = sirket.mola_bitis ? String(sirket.mola_bitis).substring(0, 5) : '-';
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><strong>${sirket.sirket_adi || '-'}</strong></td>
+                        <td>${mGiris} / ${mCikis}</td><td>${molaBas} / ${molaBit}</td>
+                        <td>${sirket.tolerans_mesai || 0} dk</td><td>${sirket.tolerans_mola || 0} dk</td><td>${sirket.mola_tolerans_ust_limit || 0} dk</td>
+                        <td>
+                            <button type="button" class="btn btn-blue" onclick='duzenleFormunaSetEt(${JSON.stringify(sirket)})'>Düzenle</button>
+                            <button type="button" class="btn btn-red" onclick='sirketSil(${sirket.sirket_id})'>Sil</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {}
+        }
+
+        function duzenleFormunaSetEt(sirket) {
+            document.getElementById("sirketId").value = sirket.sirket_id;
+            document.getElementById("sirketAdi").value = sirket.sirket_adi || "";
+            document.getElementById("mesaiGiris").value = sirket.mesai_giris ? String(sirket.mesai_giris).substring(0, 5) : "";
+            document.getElementById("mesaiCikis").value = sirket.mesai_cikis ? String(sirket.mesai_cikis).substring(0, 5) : "";
+            document.getElementById("molaBaslangic").value = sirket.mola_baslangic ? String(sirket.mola_baslangic).substring(0, 5) : "";
+            document.getElementById("molaBitis").value = sirket.mola_bitis ? String(sirket.mola_bitis).substring(0, 5) : "";
+            document.getElementById("toleransMesai").value = sirket.tolerans_mesai || 0;
+            document.getElementById("toleransMola").value = sirket.tolerans_mola || 0;
+            document.getElementById("molaToleransUstLimit").value = sirket.mola_tolerans_ust_limit || 0;
+            document.getElementById("submitBtn").innerText = "Güncelle";
+            document.getElementById("iptalBtn").style.display = "inline-block";
+        }
+        function rolDegistiKontrol() {
+            const tipId = document.getElementById("yetkiliTipId").value;
+            // Eğer seçilen rol Personel (1) ise şifre alanını otomatik temizle
+            if (tipId == "1") {
+                document.getElementById("yetkiliSifre").value = "";
+            }
+}
+
+        function formuSifirla() {
+            parametreForm.reset();
+            document.getElementById("sirketId").value = "";
+            document.getElementById("submitBtn").innerText = "Kaydet / Güncelle";
+            document.getElementById("iptalBtn").style.display = "none";
+        }
+
+        async function sirketSil(id) {
+            if (confirm("Bu şirketi tamamen silmek istediğinize emin misiniz?")) {
+                try {
+                    const response = await fetch(`/api/sirketler/${id}`, { method: 'DELETE' });
+                    if (response.ok) sirketleriYukle();
+                } catch (error) {}
+            }
+        }
+
+        // Sayfa yüklendiğinde yetkili sekmesindeki şirket select'ini de doldurmak için sirketleriYukle içine ekleyebilirsin
+        // Veya ayrı bir fonksiyonla çağırabiliriz:
+        async function yetkiliSayfasiSirketleriDoldur() {
+            try {
+                const response = await fetch('/api/sirketler');
+                const sirketler = await response.json();
+                const select = document.getElementById("yetkiliSirketSec");
+                
+                // İlk option hariç temizle
+                select.innerHTML = '<option value="">-- Önce Şirket Seçiniz --</option>';
+                
+                sirketler.forEach(sirket => {
+                    const opt = document.createElement("option");
+                    opt.value = sirket.sirket_id;
+                    opt.textContent = sirket.sirket_adi;
+                    select.appendChild(opt);
+                });
+            } catch (error) {
+                console.error("Şirketler select'e yüklenemedi:", error);
+            }
+        }
+
+        // Ana sirketleriYukle fonksiyonunun içine de "yetkiliSayfasiSirketleriDoldur();" satırını ekleyebilirsin.
+
+        // Şirket seçildiğinde tetiklenen fonksiyon
+        function sirketSecildiIslemi() {
+            const secilenSirketId = document.getElementById("yetkiliSirketSec").value;
+            const alan = document.getElementById("yetkiliFormVeListeAlani");
+            
+            if (secilenSirketId) {
+                alan.style.display = "block"; // Formu ve liste alanını aç
+                yetkiliFormunuSifirla();
+                personelListesiniGetir(); // Arkada verileri hazırla
+            } else {
+                alan.style.display = "none"; // Şirket seçilmediyse kapat
+            }
+        }
+
+        // Listeyi Göster / Gizle Butonu Mantığı
+        function personelListesiniAcKapat() {
+            const tabloKutusu = document.getElementById("personelTabloKutusu");
+            if (tabloKutusu.style.display === "none") {
+                tabloKutusu.style.display = "block";
+                personelListesiniGetir();
+            } else {
+                tabloKutusu.style.display = "none";
+            }
+        }
+
+        // Şirkete ait personelleri API'den çekme ve tabloya basma
+        async function personelListesiniGetir() {
+            const sirketId = document.getElementById("yetkiliSirketSec").value;
+            if (!sirketId) return;
+
+            const tbody = document.querySelector("#personelTablosu tbody");
+            tbody.innerHTML = "";
+
+            try {
+                const response = await fetch(`/api/sirketler/${sirketId}/personeller`);
+                const personeller = await response.json();
+
+                if (personeller.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #777;">Bu şirkete ait kayıtlı personel bulunmuyor.</td></tr>`;
+                    return;
+                }
+
+                personeller.forEach(p => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${p.ad}</td>
+                        <td>${p.soyad}</td>
+                        <td>${p.e_posta}</td>
+                        <td>${p.sifre}</td>
+                        <td><b>${p.tip_id == 1 ? 'Personel' : 'Yetkili'}</b></td>
+                        <td>
+                            <button type="button" class="btn btn-blue" onclick='personeliFormaSetEt(${JSON.stringify(p)})'>Düzenle</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error("Personeller yüklenemedi:", error);
+            }
+        }
+
+        // Tablodan seçilen personeli forma set etme
+        function personeliFormaSetEt(p) {
+            document.getElementById("kisiId").value = p.kisi_id;
+            document.getElementById("yetkiliAd").value = p.ad;
+            document.getElementById("yetkiliSoyad").value = p.soyad;
+            document.getElementById("yetkiliEposta").value = p.e_posta;
+            
+            // Eğer veritabanında şifre null ise inputu boş bırak, değilse şifreyi yaz
+            document.getElementById("yetkiliSifre").value = (p.sifre !== null && p.sifre !== undefined) ? p.sifre : "";
+            
+            // Kullanıcı tipini (rolünü) forma set et
+            document.getElementById("yetkiliTipId").value = p.tip_id;
+
+            document.getElementById("yetkiliSubmitBtn").innerText = "Bilgileri Güncelle";
+            document.getElementById("yetkiliIptalBtn").style.display = "inline-block";
+            
+            document.getElementById("yetkiliForm").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Yetkili Formunu Sıfırlama
+        function yetkiliFormunuSifirla() {
+            document.getElementById("yetkiliForm").reset();
+            document.getElementById("kisiId").value = "";
+            document.getElementById("yetkiliSubmitBtn").innerText = "Yetkiliyi Kaydet / Ata";
+            document.getElementById("yetkiliIptalBtn").style.display = "none";
+        }
+
+        // Yetkili Formu Gönderimi (Ekleme / Güncelleme)
+        document.getElementById("yetkiliForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const veri = {
+                kisi_id: document.getElementById("kisiId").value,
+                ad: document.getElementById("yetkiliAd").value,
+                soyad: document.getElementById("yetkiliSoyad").value,
+                e_posta: document.getElementById("yetkiliEposta").value,
+                sifre: document.getElementById("yetkiliSifre").value,
+                tip_id: document.getElementById("yetkiliTipId").value,
+                sirket_id: document.getElementById("yetkiliSirketSec").value // Arka planda tutulan güvenli şirket ID'si
+            };
+
+            try {
+                const response = await fetch('/api/sirketler/yetkili-kaydet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(veri)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert("Hata: " + data.error);
+                    return;
+                }
+
+                alert(data.message);
+                yetkiliFormunuSifirla();
+                personelListesiniGetir(); // Sayfa yenilenmeden listeyi güncelle
+            } catch (error) {
+                console.error("Yetkili kayıt hatası:", error);
+                alert("Sunucu ile iletişim kurulamadı.");
+            }
+        });
+    </script>
+</body>
+</html>

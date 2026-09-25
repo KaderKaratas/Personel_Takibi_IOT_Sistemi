@@ -1,0 +1,768 @@
+<!--DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İzin ve Mazeret Yönetimi</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #fff; color: #333; }
+        .container { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #fafafa; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="datetime-local"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #2980b9; }
+        
+        .mesaj { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Özel Açılır Liste Stilleri */
+        .custom-select { position: relative; width: 100%; }
+        .dropdown-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ccc; border-top: none;
+            max-height: 150px; overflow-y: auto; z-index: 1000;
+            display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px;
+        }
+        .dropdown-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .dropdown-item:hover { background-color: #3498db; color: white; }
+    </style>
+    <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h2>İzin / Mazeret Tanımla</h2>
+        <form id="izinForm">
+            <div class="form-group">
+                <label>Personel Seç / Ara</label>
+                <div class="custom-select">
+                    <input type="text" id="kisi_input" placeholder="İsim yazın veya seçin..." autocomplete="off" required>
+                    <div id="personel_liste" class="dropdown-list"></div>
+                   
+                    <input type="hidden" id="kisi_id" required>
+                    
+                    <input type="hidden" id="izin_kayit_id">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tür</label>
+                <select id="tur" required>
+                    <option value="izin">İzin (Günlük / Çoklu Gün)</option>
+                    <option value="mazeret">Mazeret (Saatlik / Kısa Süreli)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Başlangıç Tarih ve Saati</label>
+                <input type="datetime-local" id="baslangic_zaman" required>
+            </div>
+
+            <div class="form-group">
+                <label>Bitiş Tarih ve Saati</label>
+                <input type="datetime-local" id="bitis_zaman" required>
+            </div>
+
+            <button type="submit" id="kaydetBtn">Kaydet</button>
+        </form>
+        <div id="mesajKutusu" class="mesaj"></div>
+
+       
+        <div style="margin-top: 30px;">
+            <h4>Son 1 Haftanın İzin ve Mazeret Listesi</h4>
+            <div style="max-height: 250px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                    <thead style="background: #f1f1f1; position: sticky; top: 0; z-index: 10;">
+                        <tr>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Ad Soyad</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Tür</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Başlangıç</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Bitiş</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="izinTabloBody">
+                       
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let personelData = []; // Arama için şirket personelleri
+        let izinlerData = [];  // Tablo için izin kayıtları
+
+        // Sayfa yüklendiğinde personelleri ve izin listesini çek
+        document.addEventListener('DOMContentLoaded', async () => {
+            
+            const input = document.getElementById('kisi_input');
+            const list = document.getElementById('personel_liste');
+            const hidden = document.getElementById('kisi_id');
+
+            // 1. Personel Listesini Çek (Açılır Kutu İçin)
+            try {
+                const response = await fetch('/api/izin/personeller');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    personelData = result.data; 
+                } else {
+                    console.error("Personeller yüklenemedi:", result.message);
+                }
+            } catch (error) {
+                console.error("Personel listesi çekilirken hata:", error);
+            }
+
+            // 2. Tabloda Gösterilecek Güncel İzinleri Çek
+            izinleriGetir();
+
+            // Açılır Kutu (Dropdown) Mantığı
+            const renderList = (filter = '') => {
+                list.innerHTML = '';
+                const filtered = personelData.filter(kisi => {
+                    const text = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`.toLowerCase();
+                    return text.includes(filter.toLowerCase());
+                });
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="dropdown-item" style="color:red; cursor:default;">Kayıt bulunamadı</div>';
+                    return;
+                }
+                
+                filtered.forEach(kisi => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item';
+                    div.textContent = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`;
+                    div.onclick = () => {
+                        input.value = div.textContent;
+                        hidden.value = kisi.kisi_id;
+                        list.style.display = 'none';
+                    };
+                    list.appendChild(div);
+                });
+            };
+
+            input.addEventListener('focus', (e) => { 
+                renderList(input.value); 
+                list.style.display = 'block'; 
+                e.target.select();
+            });
+
+            input.addEventListener('input', (e) => {
+                hidden.value = '';
+                renderList(e.target.value);
+                list.style.display = 'block';
+            });
+
+            document.addEventListener('click', (e) => {
+                if (e.target !== input && e.target !== list) list.style.display = 'none';
+            });
+        });
+
+        // İzinleri Backend'den Çekip Tabloya Yazan Fonksiyon
+        async function izinleriGetir() {
+            try {
+                //const response = await fetch('/api/izin/liste');
+                const response = await fetch('/api/izin/liste', { cache: 'no-store' });
+                const result = await response.json();
+                
+                console.log("Backend'den Gelen İzin Listesi:", result.data);    
+
+                const tbody = document.getElementById('izinTabloBody');
+                tbody.innerHTML = '';
+
+                if (response.ok && result.success) {
+                    
+                    // FİLTREYİ KALDIRDIK: Veritabanından gelen tüm kayıtları doğrudan ekrana basıyoruz
+                    izinlerData = result.data;
+
+                    console.log("Filtreden Geçen (Ekrana Basılacak) Liste:", izinlerData);
+
+                    if (izinlerData.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="padding: 10px; text-align: center; color: gray;">Son 1 haftaya ait izin/mazeret kaydı bulunmuyor.</td></tr>';
+                        return;
+                    }
+
+                    izinlerData.forEach(kayit => {
+                        // Tarih formatlaması
+                        const baslangicFmt = new Date(kayit.baslangic_zaman).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
+                        const bitisFmt = new Date(kayit.bitis_zaman).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
+
+                        const tr = document.createElement('tr');
+                        tr.style.borderBottom = '1px solid #eee';
+
+                        const kayitId = kayit.izin_id || kayit.id; // DB'den gelen ID ismi
+
+                        tr.innerHTML = `
+                            <td style="padding: 8px;">${kayit.ad} ${kayit.soyad}</td>
+                            <td style="padding: 8px; text-transform: capitalize;">${kayit.tur}</td>
+                            <td style="padding: 8px;">${baslangicFmt}</td>
+                            <td style="padding: 8px;">${bitisFmt}</td>
+                            <td style="padding: 8px; text-align: right;">
+                                <button type="button" class="duzenle-btn" style="width: auto; padding: 5px 10px; font-size: 13px; margin: 0 5px 0 0; background-color: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer;">Düzenle</button>
+                                <button type="button" class="sil-btn" onclick="izniSil(${kayitId})" style="width: auto; padding: 5px 10px; font-size: 13px; margin: 0; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Sil</button>
+                            </td>
+                        `;
+
+                        // Düzenle Butonuna Tıklanınca
+                        tr.querySelector('.duzenle-btn').onclick = () => {
+                            izinFormunuDoldur(kayit);
+                        };
+
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding: 10px; text-align: center; color: red;">Veriler yüklenemedi.</td></tr>';
+                }
+            } catch (error) {
+                console.error('İzin listesi çekme hatası:', error);
+            }
+        }
+
+        // Formu Düzenlemek İçin Otomatik Dolduran Fonksiyon
+        function izinFormunuDoldur(kayit) {
+            document.getElementById('kisi_id').value = kayit.kisi_id;
+            document.getElementById('kisi_input').value = `${kayit.ad} ${kayit.soyad} (Mevcut İzin Düzenleniyor)`;
+            
+            document.getElementById('izin_kayit_id').value = kayit.izin_id || kayit.id || '';
+            document.getElementById('tur').value = kayit.tur;
+
+            try {
+                const bs = new Date(kayit.baslangic_zaman);
+                const baslangicLocal = new Date(bs.getTime() - bs.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                document.getElementById('baslangic_zaman').value = baslangicLocal;
+
+                const bt = new Date(kayit.bitis_zaman);
+                const bitisLocal = new Date(bt.getTime() - bt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                document.getElementById('bitis_zaman').value = bitisLocal;
+            } catch(e) {
+                console.error("Tarih formatlanırken hata:", e);
+            }
+
+            document.getElementById('kaydetBtn').innerText = "Değişiklikleri Kaydet";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // İzin / Mazeret Silme Fonksiyonu
+        async function izniSil(izin_id) {
+            if (!confirm("Bu izin/mazeret kaydını silmek istediğinize emin misiniz?")) {
+                return;
+            }
+
+            try {
+                // Backend'de silme işlemi yapacak olan endpoint (örn: /api/izin/sil)
+                const response = await fetch('/api/izin/sil', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ izin_id: izin_id })
+                });
+
+                const result = await response.json();
+                const mesajKutusu = document.getElementById('mesajKutusu');
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    mesajKutusu.className = 'mesaj basarili';
+                    mesajKutusu.innerHTML = "Kayıt başarıyla silindi.";
+                    
+                    // Formu sıfırlayıp tabloyu güncelleyelim
+                    document.getElementById('izinForm').reset();
+                    document.getElementById('kisi_id').value = '';
+                    document.getElementById('izin_kayit_id').value = '';
+                    document.getElementById('kaydetBtn').innerText = "Kaydet";
+                    
+                    izinleriGetir(); 
+                } else {
+                    mesajKutusu.className = 'mesaj hatali';
+                    mesajKutusu.innerHTML = result.message || "Kayıt silinirken bir hata oluştu.";
+                }
+            } catch (error) {
+                console.error("Silme hatası:", error);
+                alert("Sunucuyla bağlantı kurulamadı.");
+            }
+        }
+
+        // Form Gönderimi (Ekleme / Güncelleme)
+        document.getElementById('izinForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const kisi_id = document.getElementById('kisi_id').value;
+            const izin_kayit_id = document.getElementById('izin_kayit_id').value; 
+            const tur = document.getElementById('tur').value;
+            const baslangic_zaman = document.getElementById('baslangic_zaman').value;
+            const bitis_zaman = document.getElementById('bitis_zaman').value;
+            const mesajKutusu = document.getElementById('mesajKutusu');
+
+            if (!kisi_id) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Lütfen listeden geçerli bir personel seçin.';
+                return;
+            }
+
+            const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+            if (!regex.test(baslangic_zaman) || !regex.test(bitis_zaman)) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Lütfen tarihleri takvimden seçerek (YYYY-AA-GG Saat:Dakika) formatında girin.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/izin/ekle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ izin_kayit_id, kisi_id, tur, baslangic_zaman, bitis_zaman })
+                });
+
+                const result = await response.json();
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    mesajKutusu.className = 'mesaj basarili';
+                    mesajKutusu.innerHTML = result.message;
+                    
+                    document.getElementById('izinForm').reset();
+                    document.getElementById('kisi_id').value = '';
+                    document.getElementById('izin_kayit_id').value = '';
+                    document.getElementById('kaydetBtn').innerText = "Kaydet";
+                    
+                    izinleriGetir(); 
+                } else {
+                    mesajKutusu.className = 'mesaj hatali';
+                    mesajKutusu.innerHTML = result.errors ? result.errors.map(err => err.msg).join('<br>') : result.message;
+                }
+            } catch (error) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Sunucuyla bağlantı kurulamadı.';
+            }
+        });
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İzin ve Mazeret Yönetimi</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 10px 20px; background: #fff; color: #333; text-align: left; font-size: 14px; }
+        /* Sayfa ortalanması engellendi, sola yaslandı */
+        .container { max-width: 900px; margin: 0; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); border-radius: 12px; border: none; border-radius: 8px; background-color: #fafafa; }
+        .form-group { margin-bottom: 10px; }
+        label { display: block; margin-bottom: 4px; font-weight: bold; }
+        input[type="text"], input[type="datetime-local"], select { width: 100%; padding: 7px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px;}
+        button { width: 100%; padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #2980b9; }
+
+        .form-row {
+        display: flex;
+        gap: 20px; /* İki kutu arasına 20px boşluk bırakır, formun genel yapısıyla uyumlu olur */
+    }
+
+        .form-row .form-group {
+        flex: 1; /* İki kutunun mevcut alanı %50 - %50 eşit paylaşmasını sağlar */
+        margin-bottom: 0; /* İçteki margin'i sıfırlayarak kaymaları engeller */
+    }
+        
+        .mesaj { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Özel Açılır Liste Stilleri */
+        .custom-select { position: relative; width: 100%; }
+        .dropdown-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ccc; border-top: none;
+            max-height: 150px; overflow-y: auto; z-index: 1000;
+            display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px;
+        }
+        .dropdown-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .dropdown-item:hover { background-color: #3498db; color: white; }
+    </style>
+    <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h2>İZİN / MAZERET İŞLEMLERİ</h2>
+        <form id="izinForm">
+            <div class="form-group">
+                <label>Personel Seç / Ara</label>
+                <div class="custom-select">
+                    <input type="text" id="kisi_input" placeholder="İsim yazın veya seçin..." autocomplete="off" required>
+                    <div id="personel_liste" class="dropdown-list"></div>
+                    <!-- İzin Güncelleme İşlemi İçin Formda Gizli ID -->
+                    <input type="hidden" id="kisi_id" required>
+                    <!-- Hangi izin kaydının güncelleneceğini tutan ID -->
+                    <input type="hidden" id="izin_kayit_id">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tür</label>
+                <select id="tur" required>
+                    <option value="izin">İzin (Günlük / Çoklu Gün)</option>
+                    <option value="mazeret">Mazeret (Saatlik / Kısa Süreli)</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+            <div class="form-group">
+                <label>Başlangıç Tarih ve Saati</label>
+                <input type="datetime-local" id="baslangic_zaman" required>
+            </div>
+            <div class="form-group">
+                <label>Bitiş Tarih ve Saati</label>
+                <input type="datetime-local" id="bitis_zaman" required>
+            </div>
+           </div>
+            
+            <button type="submit" id="kaydetBtn">Kaydet</button>
+        </form>
+        <div id="mesajKutusu" class="mesaj"></div>
+
+        <!-- Alt Kısımdaki İzin/Mazeret Listesi Tablosu ve Filtreleme Alanı -->
+        <!-- Alt Kısımdaki İzin/Mazeret Listesi Tablosu ve Filtreleme Alanı -->
+        <div style="margin-top: 30px;">
+            <!-- Flex yapısı kaldırıldı, elemanlar alt alta dizildi -->
+            <div style="margin-bottom: 15px;">
+                <h4 style="margin: 0 0 10px 0;">Tüm İzin ve Mazeret Listesi</h4>
+                
+                <!-- Personele Göre Filtreleme Seçeneği -->
+                <div>
+                    <!-- width: 100% yapılarak üstteki form elemanlarıyla hizalı olması sağlandı -->
+                    <select id="personelFiltreSec" onchange="aktifSayfa = 1; izinleriGetir();" style="padding: 7px; width: 100%; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; box-sizing: border-box;">
+                        <option value="">-Tüm Personel İzinlerini Göster-</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="border: 1px solid #ccc; border-radius: 4px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 14px;">
+                    <thead style="background: #f1f1f1; position: sticky; top: 0; z-index: 10;">
+                        <tr>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Ad Soyad</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Tür</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Başlangıç</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Bitiş</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="izinTabloBody">
+                        <!-- Javascript ile dinamik dolacak -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Sayfalama (Pagination) Buton Alanı -->
+            <div id="sayfalamaKutusu" style="margin-top: 12px; display: flex; gap: 5px; justify-content: flex-end;">
+                <!-- JS ile dinamik oluşturulacak -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let personelData = []; // Arama için şirket personelleri
+        let aktifSayfa = 1;
+        const kayitLimiti = 5; // Sayfa başına gösterilecek kayıt sayısı
+
+        // Sayfa yüklendiğinde personelleri ve izin listesini çek
+        document.addEventListener('DOMContentLoaded', async () => {
+            const input = document.getElementById('kisi_input');
+            const list = document.getElementById('personel_liste');
+            const hidden = document.getElementById('kisi_id');
+
+            // 1. Personel Listesini Çek (Açılır Kutu ve Filtre İçin)
+            try {
+                const response = await fetch('/api/izin/personeller');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    personelData = result.data; 
+                    
+                    // Filtre select kutusunu doldur
+                    const filtreSelect = document.getElementById('personelFiltreSec');
+                    personelData.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.kisi_id;
+                        opt.textContent = `${p.ad} ${p.soyad}`;
+                        filtreSelect.appendChild(opt);
+                    });
+                } else {
+                    console.error("Personeller yüklenemedi:", result.message);
+                }
+            } catch (error) {
+                console.error("Personel listesi çekilirken hata:", error);
+            }
+
+            // 2. Tabloda Gösterilecek İzinleri Çek
+            izinleriGetir();
+
+            // Açılır Kutu (Dropdown) Mantığı
+            const renderList = (filter = '') => {
+                list.innerHTML = '';
+                const filtered = personelData.filter(kisi => {
+                    const text = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`.toLowerCase();
+                    return text.includes(filter.toLowerCase());
+                });
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="dropdown-item" style="color:red; cursor:default;">Kayıt bulunamadı</div>';
+                    return;
+                }
+                
+                filtered.forEach(kisi => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item';
+                    div.textContent = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`;
+                    div.onclick = () => {
+                        input.value = div.textContent;
+                        hidden.value = kisi.kisi_id;
+                        list.style.display = 'none';
+                    };
+                    list.appendChild(div);
+                });
+            };
+
+            input.addEventListener('focus', (e) => { 
+                renderList(input.value); 
+                list.style.display = 'block'; 
+                e.target.select();
+            });
+
+            input.addEventListener('input', (e) => {
+                hidden.value = '';
+                renderList(e.target.value);
+                list.style.display = 'block';
+            });
+
+            document.addEventListener('click', (e) => {
+                if (e.target !== input && e.target !== list) list.style.display = 'none';
+            });
+        });
+
+        // İzinleri Backend'den Çekip Sayfalama Mantığıyla Tabloya Yazan Fonksiyon
+        async function izinleriGetir() {
+            try {
+                const response = await fetch('/api/izin/liste', { cache: 'no-store' });
+                const result = await response.json();
+
+                const tbody = document.getElementById('izinTabloBody');
+                tbody.innerHTML = '';
+
+                if (response.ok && result.success) {
+                    let tumKaitlar = result.data;
+
+                    // Eğer üstteki filtre menüsünden spesifik bir personel seçildiyse sadece onun izinlerini filtrele
+                    const secilenFiltreKisiId = document.getElementById('personelFiltreSec').value;
+                    if (secilenFiltreKisiId) {
+                        tumKaitlar = tumKaitlar.filter(k => String(k.kisi_id) === String(secilenFiltreKisiId));
+                    }
+
+                    if (tumKaitlar.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="padding: 15px; text-align: center; color: gray;">İzin veya mazeret kaydı bulunmuyor.</td></tr>';
+                        document.getElementById('sayfalamaKutusu').innerHTML = '';
+                        return;
+                    }
+
+                    // Sayfalama (Pagination) Hesaplamaları
+                    const toplamKayit = tumKaitlar.length;
+                    const toplamSayfa = Math.ceil(toplamKayit / kayitLimiti);
+                    
+                    if (aktifSayfa > toplamSayfa) aktifSayfa = toplamSayfa;
+                    if (aktifSayfa < 1) aktifSayfa = 1;
+
+                    const baslangicIndex = (aktifSayfa - 1) * kayitLimiti;
+                    const bitisIndex = baslangicIndex + kayitLimiti;
+                    const sayfadakiKayitlar = tumKaitlar.slice(baslangicIndex, bitisIndex);
+
+                    // Kayıtları tabloya bas
+                    sayfadakiKayitlar.forEach(kayit => {
+                        const baslangicFmt = new Date(kayit.baslangic_zaman).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
+                        const bitisFmt = new Date(kayit.bitis_zaman).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
+
+                        const tr = document.createElement('tr');
+                        tr.style.borderBottom = '1px solid #eee';
+
+                        const kayitId = kayit.izin_id || kayit.id;
+
+                        tr.innerHTML = `
+                            <td style="padding: 8px;">${kayit.ad} ${kayit.soyad}</td>
+                            <td style="padding: 8px; text-transform: capitalize;">${kayit.tur}</td>
+                            <td style="padding: 8px;">${baslangicFmt}</td>
+                            <td style="padding: 8px;">${bitisFmt}</td>
+                            <td style="padding: 8px; text-align: right;">
+                                <button type="button" class="duzenle-btn" style="width: auto; padding: 5px 10px; font-size: 13px; margin: 0 5px 0 0; background-color: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer;">Düzenle</button>
+                                <button type="button" class="sil-btn" onclick="izniSil(${kayitId})" style="width: auto; padding: 5px 10px; font-size: 13px; margin: 0; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Sil</button>
+                            </td>
+                        `;
+
+                        tr.querySelector('.duzenle-btn').onclick = () => {
+                            izinFormunuDoldur(kayit);
+                        };
+
+                        tbody.appendChild(tr);
+                    });
+
+                    // Sayfalama butonlarını oluştur
+                    sayfalamaButonlariniCiz(toplamSayfa);
+
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" style="padding: 10px; text-align: center; color: red;">Veriler yüklenemedi.</td></tr>';
+                }
+            } catch (error) {
+                console.error('İzin listesi çekme hatası:', error);
+            }
+        }
+
+        // Sayfa butonlarını oluşturan yardımcı fonksiyon
+        function sayfalamaButonlariniCiz(toplamSayfa) {
+            const kutu = document.getElementById('sayfalamaKutusu');
+            kutu.innerHTML = '';
+
+            if (toplamSayfa <= 1) return;
+
+            for (let i = 1; i <= toplamSayfa; i++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = i;
+                btn.style.width = 'auto';
+                btn.style.padding = '5px 10px';
+                btn.style.marginTop = '0';
+                btn.style.border = '1px solid #ccc';
+                btn.style.cursor = 'pointer';
+                btn.style.borderRadius = '3px';
+                
+                if (i === aktifSayfa) {
+                    btn.style.backgroundColor = '#3498db';
+                    btn.style.color = 'white';
+                } else {
+                    btn.style.backgroundColor = '#fff';
+                    btn.style.color = '#333';
+                }
+
+                btn.onclick = () => {
+                    aktifSayfa = i;
+                    izinleriGetir();
+                };
+
+                kutu.appendChild(btn);
+            }
+        }
+
+        // Formu Düzenlemek İçin Otomatik Dolduran Fonksiyon
+        function izinFormunuDoldur(kayit) {
+            document.getElementById('kisi_id').value = kayit.kisi_id;
+            document.getElementById('kisi_input').value = `${kayit.ad} ${kayit.soyad} (Mevcut İzin Düzenleniyor)`;
+            
+            document.getElementById('izin_kayit_id').value = kayit.izin_id || kayit.id || '';
+            document.getElementById('tur').value = kayit.tur;
+
+            try {
+                const bs = new Date(kayit.baslangic_zaman);
+                const baslangicLocal = new Date(bs.getTime() - bs.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                document.getElementById('baslangic_zaman').value = baslangicLocal;
+
+                const bt = new Date(kayit.bitis_zaman);
+                const bitisLocal = new Date(bt.getTime() - bt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                document.getElementById('bitis_zaman').value = bitisLocal;
+            } catch(e) {
+                console.error("Tarih formatlanırken hata:", e);
+            }
+
+            document.getElementById('kaydetBtn').innerText = "Değişiklikleri Kaydet";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // İzin / Mazeret Silme Fonksiyonu
+        async function izniSil(izin_id) {
+            if (!confirm("Bu izin/mazeret kaydını silmek istediğinize emin misiniz?")) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/izin/sil', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ izin_id: izin_id })
+                });
+
+                const result = await response.json();
+                const mesajKutusu = document.getElementById('mesajKutusu');
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    mesajKutusu.className = 'mesaj basarili';
+                    mesajKutusu.innerHTML = "Kayıt başarıyla silindi.";
+                    
+                    document.getElementById('izinForm').reset();
+                    document.getElementById('kisi_id').value = '';
+                    document.getElementById('izin_kayit_id').value = '';
+                    document.getElementById('kaydetBtn').innerText = "Kaydet";
+                    
+                    izinleriGetir(); 
+                } else {
+                    mesajKutusu.className = 'mesaj hatali';
+                    mesajKutusu.innerHTML = result.message || "Kayıt silinirken bir hata oluştu.";
+                }
+            } catch (error) {
+                console.error("Silme hatası:", error);
+                alert("Sunucuyla bağlantı kurulamadı.");
+            }
+        }
+
+        // Form Gönderimi (Ekleme / Güncelleme)
+        document.getElementById('izinForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const kisi_id = document.getElementById('kisi_id').value;
+            const izin_kayit_id = document.getElementById('izin_kayit_id').value; 
+            const tur = document.getElementById('tur').value;
+            const baslangic_zaman = document.getElementById('baslangic_zaman').value;
+            const bitis_zaman = document.getElementById('bitis_zaman').value;
+            const mesajKutusu = document.getElementById('mesajKutusu');
+
+            if (!kisi_id) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Lütfen listeden geçerli bir personel seçin.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/izin/ekle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ izin_kayit_id, kisi_id, tur, baslangic_zaman, bitis_zaman })
+                });
+
+                const result = await response.json();
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    mesajKutusu.className = 'mesaj basarili';
+                    mesajKutusu.innerHTML = result.message;
+                    
+                    document.getElementById('izinForm').reset();
+                    document.getElementById('kisi_id').value = '';
+                    document.getElementById('izin_kayit_id').value = '';
+                    document.getElementById('kaydetBtn').innerText = "Kaydet";
+                    
+                    izinleriGetir(); 
+                } else {
+                    mesajKutusu.className = 'mesaj hatali';
+                    mesajKutusu.innerHTML = result.errors ? result.errors.map(err => err.msg).join('<br>') : result.message;
+                }
+            } catch (error) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Sunucuyla bağlantı kurulamadı.';
+            }
+        });
+    </script>
+</body>
+</html>

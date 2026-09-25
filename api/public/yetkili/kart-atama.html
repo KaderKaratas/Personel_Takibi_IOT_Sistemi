@@ -1,0 +1,627 @@
+<!--DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kart Atama</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #fff; color: #333; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .card { flex: 1; min-width: 300px; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #fafafa; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #2980b9; }
+        
+        .mesaj { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        
+        .custom-select { position: relative; width: 100%; }
+        .dropdown-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ccc; border-top: none;
+            max-height: 150px; overflow-y: auto; z-index: 1000;
+            display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px;
+        }
+        .dropdown-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .dropdown-item:hover { background-color: #3498db; color: white; }
+    </style>
+    <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    <h2>Kart Atama</h2>
+
+    <div class="container">
+        
+        <div class="card">
+            <h3>RFID Kart Tanımla</h3>
+            <form id="kartAtaForm">
+                <div class="form-group">
+                    <label>Personel Seç / Ara</label>
+                    <div class="custom-select">
+                        <input type="text" id="kart_kisi_input" placeholder="İsim yazın veya seçin..." autocomplete="off" required>
+                        <div id="kart_personel_liste" class="dropdown-list"></div>
+                        <input type="hidden" id="kart_kisi_id" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>RFID Kart Numarası (UID)</label>
+                    <input type="text" id="rfid_uid" placeholder="Kartı okutun veya UID girin" maxlength="50" pattern="[a-zA-Z0-9]+" title="Sadece harf ve rakam girebilirsiniz, sembol kullanılamaz." required>
+                </div>
+                <button type="submit">Kartı Ata</button>
+            </form>
+            
+            
+            <div style="margin-top: 25px;">
+                <h4>Personel Listesi</h4>
+                <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead style="background: #f1f1f1; position: sticky; top: 0; z-index: 10;">
+                            <tr>
+                                <th style="padding: 8px; border-bottom: 1px solid #ccc;">Ad Soyad</th>
+                                <th style="padding: 8px; border-bottom: 1px solid #ccc;">Kart ID</th>
+                                <th style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="personelTabloBody">
+                         
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="kartMesaj" class="mesaj"></div>
+        </div>
+
+       
+        
+    </div> 
+
+    <script>
+        let personelData = []; 
+
+        function setupDropdown(inputId, listId, hiddenId) {
+            const input = document.getElementById(inputId);
+            const list = document.getElementById(listId);
+            const hidden = document.getElementById(hiddenId);
+
+            const renderList = (filter = '') => {
+                list.innerHTML = '';
+                const filtered = personelData.filter(kisi => {
+                    const text = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`.toLowerCase();
+                    return text.includes(filter.toLowerCase());
+                });
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="dropdown-item" style="color:red; cursor:default;">Kayıt bulunamadı</div>';
+                    return;
+                }
+
+                filtered.forEach(kisi => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item';
+                    div.textContent = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`;
+                    div.onclick = () => {
+                        input.value = div.textContent; 
+                        hidden.value = kisi.kisi_id;   
+                        list.style.display = 'none';   
+                    };
+                    list.appendChild(div);
+                });
+            };
+
+            input.addEventListener('focus', (e) => { 
+                renderList(''); 
+                list.style.display = 'block'; 
+                e.target.select();
+            });
+
+            input.addEventListener('input', (e) => {
+                hidden.value = ''; 
+                renderList(e.target.value);
+                list.style.display = 'block';
+            });
+
+            document.addEventListener('click', (e) => {
+                if (e.target !== input && e.target !== list) {
+                    list.style.display = 'none';
+                }
+            });
+        }
+
+       
+        async function listeyiYenile() {
+            try {
+                const response = await fetch('/api/kart/personeller');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    personelData = result.data; 
+                    renderPersonelTable(); 
+                } else {
+                    console.error("Personeller yüklenemedi:", result.message);
+                }
+            } catch (error) {
+                console.error("Personel listesi hatası:", error);
+            }
+        }
+
+       
+        document.addEventListener('DOMContentLoaded', async () => {
+            await listeyiYenile();
+            setupDropdown('kart_kisi_input', 'kart_personel_liste', 'kart_kisi_id'); 
+            // setupDropdown sadece 1 kere çağırılır!
+        });
+
+        document.getElementById('kartAtaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const kisi_id = document.getElementById('kart_kisi_id').value;
+            const rfid_uid = document.getElementById('rfid_uid').value;
+            const mesajKutusu = document.getElementById('kartMesaj');
+
+            if (!kisi_id) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Lütfen listeden geçerli bir personel seçin.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/kart/ata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kisi_id, rfid_uid })
+                });
+                
+                const result = await response.json();
+                mesajKutusu.style.display = 'block';
+
+                if (response.ok && result.success) {
+                    mesajKutusu.className = 'mesaj basarili';
+                    mesajKutusu.innerHTML = result.message;
+                    document.getElementById('rfid_uid').value = '';
+                    
+                    listeyiYenile();
+                } else {
+                    mesajKutusu.className = 'mesaj hatali';
+                    mesajKutusu.innerHTML = result.errors ? result.errors.map(err => err.msg).join('<br>') : result.message;
+                }
+            } catch (error) {
+                mesajKutusu.style.display = 'block';
+                mesajKutusu.className = 'mesaj hatali';
+                mesajKutusu.innerHTML = 'Sunucuyla bağlantı kurulamadı.';
+            }
+        });
+
+        function renderPersonelTable() {
+            const tbody = document.getElementById('personelTabloBody');
+            tbody.innerHTML = '';
+
+            if (personelData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="padding: 10px; text-align: center; color: red;">Kayıt bulunamadı</td></tr>';
+                return;
+            }
+
+            personelData.forEach(kisi => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+
+                const kartIdText = kisi.rfid_uid ? kisi.rfid_uid : '-';
+                
+                const silButonuHTML = kisi.rfid_uid 
+                    ? `<button type="button" onclick="kartiSil(${kisi.kisi_id})" style="width: auto; padding: 5px 10px; font-size: 14px; margin: 0; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Sil</button>` 
+                    : '';
+
+                tr.innerHTML = `
+                    <td style="padding: 8px;">${kisi.ad} ${kisi.soyad}</td>
+                    <td style="padding: 8px;">${kartIdText}</td>
+                    <td style="padding: 8px; text-align: right;">
+                        <button type="button" class="duzenle-btn" style="width: auto; padding: 5px 10px; font-size: 14px; margin: 0 5px 0 0; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">Düzenle</button>
+                        ${silButonuHTML}
+                    </td>
+                `;
+
+                tr.querySelector('.duzenle-btn').onclick = () => {
+                    document.getElementById('kart_kisi_input').value = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`;
+                    document.getElementById('kart_kisi_id').value = kisi.kisi_id;
+                    document.getElementById('rfid_uid').value = kisi.rfid_uid || '';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Onay pencereli Kart Silme Fonksiyonu
+        async function kartiSil(kisi_id) {
+            if (!confirm("Bu personelin kart atamasını silmek istediğinize emin misiniz?")) {
+                return; 
+            }
+
+            try {
+                const response = await fetch('/api/kart/sil', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kisi_id })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    listeyiYenile();
+                    alert("Kart başarıyla silindi."); 
+                } else {
+                    alert(result.message || "Kart silinirken bir hata oluştu.");
+                }
+            } catch (error) {
+                console.error("Kart silme hatası:", error);
+                alert("Sunucuyla bağlantı kurulamadı.");
+            }
+        }
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kart Atama</title>
+    <style>
+       /* body { font-family: Arial, sans-serif; padding: 20px; background: #fff; color: #333; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .card { flex: 1; min-width: 300px; padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #fafafa; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #3498db; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #2980b9; }
+        
+        .mesaj { margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }
+        .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; } */
+        
+    body { 
+        font-family: Arial, sans-serif; 
+        padding: 10px 20px; /* 20px'ten düşürüldü */
+        background: #fff; 
+        color: #333; 
+        text-align: left; /* Sola yaslama eklendi */
+        font-size: 14px; /* Yazı boyutu küçültüldü */
+    }
+    
+    .container { 
+        display: flex; 
+        gap: 20px; 
+        flex-wrap: wrap; 
+        max-width: 900px; /* Önceki koddan alındı, genişlik sınırlandı */
+        margin: 0; /* Sola yaslandı */
+        padding: 15px; /* Önceki koddan eklendi */
+    }
+    
+    .card { 
+        flex: 1; 
+        min-width: 300px; 
+        padding: 15px; /* 20px'ten 15px'e düşürülüp eski yapıya benzetildi */
+        box-shadow: 0 4px 12px rgba(151, 25, 25, 0.04); border-radius: 12px; border: none;
+        border-radius: 8px; 
+        background-color: #fafafa; 
+    }
+    
+    .form-group { 
+        margin-bottom: 10px; /* 15px'ten 10px'e düşürülerek daraltıldı */
+    }
+    
+    label { 
+        display: block; 
+        margin-bottom: 4px; /* 5px'ten 4px'e düşürüldü */
+        font-weight: bold; 
+    }
+    
+    input[type="text"], select { 
+        width: 100%; 
+        padding: 8px; /* 10px'ten 8px'e düşürülerek inputlar daraltıldı */
+        border: 1px solid #ccc; 
+        border-radius: 4px; 
+        box-sizing: border-box; 
+        font-size: 14px; /* Yazı boyutu 14px yapıldı */
+    }
+    
+    button { 
+        width: 100%; 
+        padding: 10px; 
+        background-color: #3498db; 
+        color: white; 
+        border: none; 
+        border-radius: 4px; 
+        font-size: 16px; 
+        cursor: pointer; 
+        margin-top: 10px; 
+    }
+    
+    button:hover { 
+        background-color: #2980b9; 
+    }
+    .gizli-buton {
+        visibility: hidden; 
+        pointer-events: none; /* Tıklanmayı da devre dışı bırakır */
+    }
+    
+    .mesaj { 
+        margin-top: 15px; 
+        padding: 10px; 
+        border-radius: 4px; 
+        display: none; 
+    }
+    
+    .basarili { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .hatali { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+
+
+    </style>
+    <script src="/auth-check.js"></script>
+</head>
+<body>
+
+    
+
+    <div class="container">
+        <!-- 1. KART ATAMA PANELİ -->
+        <div class="card">
+            <h3>RFID KART İŞLEMLERİ</h3>
+            <form id="kartAtaForm">
+                <!-- Personel Seç / Ara dropdown kutusu kaldırıldı, gizli input ile yukarı taşındı -->
+                <input type="hidden" id="kart_kisi_id" required>
+                
+                <div class="form-group">
+                    <label>Seçilen Personel</label>
+                    <input type="text" id="kart_kisi_input" placeholder="Lütfen aşağıdaki listeden bir personel seçin..." readonly style="background-color: #e9ecef; cursor: not-allowed;" required>
+                </div>
+
+                <div class="form-group">
+                    <label>RFID Kart Numarası (UID)</label>
+                    <input type="text" id="rfid_uid" placeholder="Kartı okutun veya UID girin" maxlength="50" pattern="[a-zA-Z0-9]+" title="Sadece harf ve rakam girebilirsiniz, sembol kullanılamaz." required>
+                </div>
+                <button type="submit">Kartı Ata / Güncelle</button>
+            </form>
+            
+            
+           <!-- Personel Listesi ve Arama Alanı -->
+            <div style="margin-top: 25px;">
+                <!-- flex-direction: column eklendi, zıt köşelere iten ayarlar silindi -->
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
+                    <h4 style="margin: 0;">Personel Listesi</h4>
+                    <!-- Tablo İçi Arama Inputu -->
+                    <input type="text" id="personelAramaInput" placeholder="İsim ile ara..." onkeyup="personelFiltrele()" style="width: 200px; padding: 6px; font-size: 14px;">
+                </div>
+
+                <!-- Scroll özellikleri silinmiş tablo alanı -->
+            <div style="border: 1px solid #ccc; border-radius: 4px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead style="background: #f1f1f1; position: sticky; top: 0; z-index: 10;">
+                        <tr>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Ad Soyad</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc;">Kart ID</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #ccc; text-align: right;">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody id="personelTabloBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Sayfalama (Pagination) Buton Alanı -->
+            <div id="sayfalamaKutusu" style="margin-top: 15px; display: flex; gap: 5px; justify-content: flex-end;">
+                <!-- JS ile dinamik oluşturulacak -->
+            </div>
+            </div>
+            <div id="kartMesaj" class="mesaj"></div>
+        </div>
+    </div>
+
+    <script>
+        let personelData = []; // Veritabanından gelen personelleri tutacağız
+        let aktifSayfa = 1;
+        const kayitLimiti = 5;
+        // Listeyi ve tabloyu veritabanından çekip güncelleyen genel fonksiyon
+        async function listeyiYenile() {
+            try {
+                const response = await fetch('/api/kart/personeller');
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    personelData = result.data; 
+                    renderPersonelTable(); 
+                } else {
+                    console.error("Personeller yüklenemedi:", result.message);
+                }
+            } catch (error) {
+                console.error("Personel listesi hatası:", error);
+            }
+        }
+
+        // Sayfa ilk yüklendiğinde çalışacaklar
+        document.addEventListener('DOMContentLoaded', async () => {
+            await listeyiYenile();
+        });
+
+        // Tablo içinde arama yapma fonksiyonu
+// Tablo içinde arama yapma fonksiyonu
+function personelFiltrele() {
+    const arananMetin = document.getElementById("personelAramaInput").value.toLowerCase();
+    const filteredData = personelData.filter(kisi => {
+        const adSoyad = `${kisi.ad} ${kisi.soyad}`.toLowerCase();
+        return adSoyad.includes(arananMetin);
+    });
+    aktifSayfa = 1; // Arama yapılınca sayfalama 1'e döner
+    renderPersonelTable(filteredData);
+}
+
+// 1. Kart Atama Gönderimi (Senin kodun, tamamen aynı)
+document.getElementById('kartAtaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const kisi_id = document.getElementById('kart_kisi_id').value;
+    const rfid_uid = document.getElementById('rfid_uid').value;
+    const mesajKutusu = document.getElementById('kartMesaj');
+
+    if (!kisi_id) {
+        mesajKutusu.style.display = 'block';
+        mesajKutusu.className = 'mesaj hatali';
+        mesajKutusu.innerHTML = 'Lütfen tablodan bir personel seçin.';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/kart/ata', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kisi_id, rfid_uid })
+        });
+        
+        const result = await response.json();
+        mesajKutusu.style.display = 'block';
+
+        if (response.ok && result.success) {
+            mesajKutusu.className = 'mesaj basarili';
+            mesajKutusu.innerHTML = result.message;
+            document.getElementById('rfid_uid').value = '';
+            document.getElementById('kart_kisi_id').value = '';
+            document.getElementById('kart_kisi_input').value = '';
+            
+            listeyiYenile();
+        } else {
+            mesajKutusu.className = 'mesaj hatali';
+            mesajKutusu.innerHTML = result.errors ? result.errors.map(err => err.msg).join('<br>') : result.message;
+        }
+    } catch (error) {
+        mesajKutusu.style.display = 'block';
+        mesajKutusu.className = 'mesaj hatali';
+        mesajKutusu.innerHTML = 'Sunucuyla bağlantı kurulamadı.';
+    }
+});
+
+// Tabloyu çizen ve Düzenle/Sil butonlarını ayarlayan fonksiyon (Senin kodun + Sayfalama)
+function renderPersonelTable(dataToRender = personelData) {
+    const tbody = document.getElementById('personelTabloBody');
+    tbody.innerHTML = '';
+
+    if (dataToRender.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding: 10px; text-align: center; color: red;">Kayıt bulunamadı</td></tr>';
+        document.getElementById('sayfalamaKutusu').innerHTML = ''; // Kayıt yoksa butonları da temizle
+        return;
+    }
+
+    // --- SAYFALAMA HESAPLAMALARI ---
+    const toplamSayfa = Math.ceil(dataToRender.length / kayitLimiti);
+    if (aktifSayfa > toplamSayfa) aktifSayfa = toplamSayfa;
+    if (aktifSayfa < 1) aktifSayfa = 1;
+
+    const baslangicIndex = (aktifSayfa - 1) * kayitLimiti;
+    const bitisIndex = baslangicIndex + kayitLimiti;
+    const sayfadakiKayitlar = dataToRender.slice(baslangicIndex, bitisIndex); // Sadece 5 kaydı alıyoruz
+
+    // --- SENİN SATIR OLUŞTURMA MANTIĞIN (Tüm Liste Yerine Sadece 5 Kayıt İçin Döner) ---
+   sayfadakiKayitlar.forEach(kisi => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #eee';
+    tr.style.cursor = 'pointer';
+
+    const kartIdText = kisi.rfid_uid ? kisi.rfid_uid : '-';
+    
+    // DEĞİŞEN KISIM: Kart yoksa soluk ve pasif (disabled) buton göster
+    const silButonuHTML = kisi.rfid_uid 
+        ? `<button type="button" onclick="event.stopPropagation(); kartiSil(${kisi.kisi_id})" style="width: auto; padding: 5px 10px; font-size: 14px; margin: 0; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer;">Sil</button>` 
+        : `<button type="button" disabled style="width: auto; padding: 5px 10px; font-size: 14px; margin: 0; background-color: #cccccc; color: #777777; border: none; border-radius: 4px; cursor: not-allowed;">Sil</button>`;
+
+    tr.innerHTML = `
+        <td style="padding: 8px;">${kisi.ad} ${kisi.soyad} (${kisi.durum})</td>
+        <td style="padding: 8px;">${kartIdText}</td>
+        <td style="padding: 8px; text-align: right;">
+            <button type="button" class="duzenle-btn" style="width: auto; padding: 5px 10px; font-size: 14px; margin: 0 5px 0 0; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">Düzenle</button>
+            ${silButonuHTML}
+        </td>
+    `; 
+
+        // Satıra veya Düzenle butonuna tıklandığında üstteki forma bilgileri doldur
+        const formDoldur = () => {
+            document.getElementById('kart_kisi_input').value = `${kisi.ad} ${kisi.soyad} (${kisi.durum})`;
+            document.getElementById('kart_kisi_id').value = kisi.kisi_id;
+            document.getElementById('rfid_uid').value = kisi.rfid_uid || '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        tr.onclick = formDoldur;
+        tr.querySelector('.duzenle-btn').onclick = (e) => {
+            e.stopPropagation();
+            formDoldur();
+        };
+
+        tbody.appendChild(tr);
+    });
+
+    // --- SAYFALAMA BUTONLARINI ÇİZ ---
+    sayfalamaButonlariniCiz(toplamSayfa);
+}
+
+// Sayfalama Butonlarını Oluşturma (Kare Tasarım)
+function sayfalamaButonlariniCiz(toplamSayfa) {
+    const kutu = document.getElementById('sayfalamaKutusu');
+    kutu.innerHTML = '';
+
+    if (toplamSayfa <= 1) return;
+
+    for (let i = 1; i <= toplamSayfa; i++) {
+        const aktifMi = (i === aktifSayfa);
+        kutu.innerHTML += `
+            <button type="button" onclick="sayfaDegistir(${i})" style="width: 32px; height: 32px; padding: 0; display: inline-flex; justify-content: center; align-items: center; border: 1px solid ${aktifMi ? '#3498db' : '#ccc'}; border-radius: 4px; cursor: pointer; background: ${aktifMi ? '#3498db' : '#fff'}; color: ${aktifMi ? '#fff' : '#333'}; font-size: 14px; margin: 0;">
+                ${i}
+            </button>
+        `;
+    }
+}
+
+// Sayfa Değiştirme Tetikleyicisi
+function sayfaDegistir(sayfaNo) {
+    aktifSayfa = sayfaNo;
+    // Eğer arama kutusunda bir kelime varsa ona göre sayfala, yoksa tüm veriyi sayfala
+    const aranan = document.getElementById('personelAramaInput').value;
+    if (aranan) {
+        personelFiltrele(); 
+    } else {
+        renderPersonelTable(personelData);
+    }
+}
+
+        // Onay pencereli Kart Silme Fonksiyonu
+        async function kartiSil(kisi_id) {
+            if (!confirm("Bu personelin kart atamasını silmek istediğinize emin misiniz?")) {
+                return; 
+            }
+
+            try {
+                const response = await fetch('/api/kart/sil', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kisi_id })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    listeyiYenile();
+                    alert("Kart başarıyla silindi."); 
+                } else {
+                    alert(result.message || "Kart silinirken bir hata oluştu.");
+                }
+            } catch (error) {
+                console.error("Kart silme hatası:", error);
+                alert("Sunucuyla bağlantı kurulamadı.");
+            }
+        }
+    </script>
+</body>
+</html>

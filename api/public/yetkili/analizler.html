@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetici Analiz Paneli</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js Kütüphanesi -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Üst Menü / Başlık -->
+    <header class="bg-[#2980b9] text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">Yetkili Analiz Raporları</h1>
+    </header>
+
+    <main class="container mx-auto p-6">
+        <!-- Analiz Seçenekleri Kartları -->
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Lütfen Görüntülemek İstediğiniz Analizi Seçin:</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <!-- Giriş/Çıkış Analizi -->
+            <button onclick="loadDashboard('giris-cikis')" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-l-4 border-blue-500 text-left focus:outline-none focus:ring-2 focus:ring-blue-300">
+                <h3 class="font-bold text-gray-800">Giriş / Çıkış Analizi</h3>
+                <p class="text-sm text-gray-500 mt-1">Personel giriş-çıkış istatistikleri</p>
+            </button>
+
+            <!-- Devamsızlık Analizi -->
+            <button onclick="loadDashboard('devamsizlik')" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-l-4 border-red-500 text-left focus:outline-none focus:ring-2 focus:ring-red-300">
+                <h3 class="font-bold text-gray-800">Devamsızlık Analizi</h3>
+                <p class="text-sm text-gray-500 mt-1">İzin ve devamsızlık raporları</p>
+            </button>
+
+            <!-- Personel Takibi Analizi -->
+            <button onclick="loadDashboard('personel-takip')" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-l-4 border-green-500 text-left focus:outline-none focus:ring-2 focus:ring-green-300">
+                <h3 class="font-bold text-gray-800">Personel Takibi Analizi</h3>
+                <p class="text-sm text-gray-500 mt-1">RFID ve konum bazlı takip</p>
+            </button>
+
+            <!-- Koku Analizi -->
+            <button onclick="loadDashboard('koku')" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-l-4 border-purple-500 text-left focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <h3 class="font-bold text-gray-800">Koku Analizi</h3>
+                <p class="text-sm text-gray-500 mt-1">Çevresel sensör ve gaz verileri</p>
+            </button>
+        </div>
+
+        <!-- YENİ: Chart.js Dashboard Görüntüleme Alanı -->
+        <div id="dashboard-container" class="bg-white rounded-lg shadow-lg p-6 hidden">
+            <div class="flex justify-between items-center mb-6 border-b pb-3">
+                <h3 id="dashboard-title" class="text-xl font-bold text-[#2980b9] uppercase">Rapor</h3>
+                <button onclick="closeDashboard()" class="text-red-500 hover:text-red-700 font-bold text-sm bg-red-50 px-3 py-1 rounded transition">Raporu Kapat ✕</button>
+            </div>
+
+            <!-- GİRİŞ/ÇIKIŞ ANALİZİ İÇERİĞİ (İkiye Bölündü: Sol %75, Sağ %25) -->
+            <!-- GİRİŞ/ÇIKIŞ ANALİZİ İÇERİĞİ (İkiye Bölündü: Sol %75, Sağ %25) -->
+            <div id="giris-cikis-content" class="hidden w-full flex flex-col lg:flex-row gap-6">
+                
+                <!-- SOL TARAF: KPI ve GRAFİKLER (%75 Genişlik) -->
+                <div class="w-full lg:w-3/4">
+                    
+                    <!-- KPI Kartları -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 text-center">
+                        <div class="bg-[#2980b9] text-white p-4 rounded-lg shadow border border-blue-400">
+                            <h4 class="text-xs font-bold opacity-80 uppercase">Toplam Çıkış</h4>
+                            <p id="kpi-toplam-cikis" class="text-3xl font-extrabold mt-2 bg-white text-[#2980b9] mx-2 py-1 rounded">0</p>
+                        </div>
+                        <div class="bg-[#2980b9] text-white p-4 rounded-lg shadow border border-blue-400">
+                            <h4 class="text-xs font-bold opacity-80 uppercase">Geç Giriş</h4>
+                            <p id="kpi-gec-giris" class="text-3xl font-extrabold mt-2 bg-white text-[#2980b9] mx-2 py-1 rounded">0</p>
+                        </div>
+                        <div class="bg-[#2980b9] text-white p-4 rounded-lg shadow border border-blue-400">
+                            <h4 class="text-xs font-bold opacity-80 uppercase">Toplam Giriş</h4>
+                            <p id="kpi-toplam-giris" class="text-3xl font-extrabold mt-2 bg-white text-[#2980b9] mx-2 py-1 rounded">0</p>
+                        </div>
+                        <div class="bg-[#2980b9] text-white p-4 rounded-lg shadow border border-blue-400">
+                            <h4 class="text-xs font-bold opacity-80 uppercase">Mola Aşımı</h4>
+                            <p id="kpi-mola-asimi" class="text-3xl font-extrabold mt-2 bg-white text-[#2980b9] mx-2 py-1 rounded">0</p>
+                        </div>
+                        <div class="bg-[#2980b9] text-white p-4 rounded-lg shadow border border-blue-400">
+                            <h4 class="text-xs font-bold opacity-80 uppercase">Şüpheli Geçiş</h4>
+                            <p id="kpi-supheli-gecis" class="text-3xl font-extrabold mt-2 bg-white text-[#2980b9] mx-2 py-1 rounded">0</p>
+                        </div>
+                    </div>
+
+                    <!-- Üst: 2'li Grafik Yapısı (Yan Yana) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Sol Grafik (Mavi) -->
+                        <div class="bg-gray-50 p-4 rounded-lg shadow border-t-4 border-[#2980b9]">
+                            <h3 class="text-[#2980b9] font-bold mb-4 uppercase text-xs text-center">Mesai Giriş Durumu (Geç Kalma)</h3>
+                            <div class="h-64 relative w-full"><canvas id="mesaiGirisChart"></canvas></div>
+                        </div>
+                        <!-- Sağ Grafik (Kırmızı) -->
+                        <div class="bg-gray-50 p-4 rounded-lg shadow border-t-4 border-[#e74c3c]">
+                            <h3 class="text-[#e74c3c] font-bold mb-4 uppercase text-xs text-center">Mesai Çıkış Durumu (Erken Çıkış)</h3>
+                            <div class="h-64 relative w-full"><canvas id="erkenCikisChart"></canvas></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alt: Mola Aşımı (Ortalanmış) -->
+                    <div class="bg-gray-50 p-4 rounded-lg shadow border-t-4 border-[#f39c12] w-full lg:w-2/3 mx-auto mb-8">
+                        <h3 class="text-[#f39c12] font-bold mb-4 uppercase text-xs text-center">Mola Aşımı Durumu</h3>
+                        <div class="h-64 relative w-full"><canvas id="molaAsimiChart"></canvas></div>
+                    </div>
+
+                </div> <!-- SOL TARAF KAPANIS -->
+
+                <!-- SAĞ TARAF: FİLTRELER (%25 Genişlik) -->
+                <div class="w-full lg:w-1/4 bg-gray-50 p-6 rounded-lg shadow-md border-t-4 border-[#2980b9] h-fit">
+                    <h3 class="font-bold text-[#2980b9] text-lg mb-4 border-b border-gray-300 pb-2">Filtreler</h3>
+                    
+                    <div class="space-y-4">
+                        <!-- Yıl Seçimi -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Yıl Seçimi</label>
+                            <select id="filter-yil" class="w-full border-gray-300 rounded p-2 text-gray-700 shadow-sm focus:ring focus:ring-blue-200">
+                                <option value="2026" selected>2026</option>
+                                <option value="2025">2025</option>
+                            </select>
+                        </div>
+                        <!-- Ay Seçimi -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Ay Seçimi</label>
+                            <select id="filter-ay" class="w-full border-gray-300 rounded p-2 text-gray-700 shadow-sm focus:ring focus:ring-blue-200">
+                                <option value="1">Ocak</option>
+                                <option value="2">Şubat</option>
+                                <option value="3">Mart</option>
+                                <option value="4">Nisan</option>
+                                <option value="5">Mayıs</option>
+                                <option value="6">Haziran</option>
+                                <option value="7">Temmuz</option>
+                                <option value="8">Ağustos</option>
+                                <option value="9">Eylül</option>
+                                <option value="10">Ekim</option>
+                                <option value="11">Kasım</option>
+                                <option value="12">Aralık</option>
+                            </select>
+                        </div>
+                        <!-- Kişi Seçimi -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Ad Soyad (Kişi Seçimi)</label>
+                            <select id="filter-kisi" class="w-full border-gray-300 rounded p-2 text-gray-700 shadow-sm focus:ring focus:ring-blue-200">
+                                <option value="all">Tüm Personeller</option>
+                                <!-- JS ile dinamik dolacak -->
+                            </select>
+                        </div>
+                        
+                        <button onclick="fetchAnalizData()" class="w-full bg-[#2980b9] text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition mt-4">
+                            Filtreyi Uygula
+                        </button>
+                    </div>
+                </div> <!-- SAĞ TARAF KAPANIS -->
+
+            </div>
+            
+            <div id="placeholder-content" class="hidden text-center py-10">
+                <p class="text-gray-500 text-lg">Bu analiz modülü henüz aktif değil.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let barChartInstance = null;
+        let erkenCikisChartInstance = null;
+        let molaAsimiChartInstance = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const now = new Date();
+            document.getElementById('filter-yil').value = now.getFullYear();
+            document.getElementById('filter-ay').value = now.getMonth() + 1;
+        });
+
+        async function loadDashboard(type) {
+            const container = document.getElementById('dashboard-container');
+            const title = document.getElementById('dashboard-title');
+            const girisCikisContent = document.getElementById('giris-cikis-content');
+            const placeholderContent = document.getElementById('placeholder-content');
+
+            girisCikisContent.classList.add('hidden');
+            placeholderContent.classList.add('hidden');
+            container.classList.remove('hidden');
+
+            title.innerText = type.replace('-', ' ').toUpperCase() + " Raporu";
+
+            if (type === 'giris-cikis') {
+                girisCikisContent.classList.remove('hidden');
+                await fetchKisiListesi();
+                await fetchAnalizData();
+            } else {
+                placeholderContent.classList.remove('hidden');
+            }
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function fetchKisiListesi() {
+            try {
+                const response = await fetch('/api/analiz/kisiler');
+                const result = await response.json();
+                if(result.success) {
+                    const kisiSelect = document.getElementById('filter-kisi');
+                    kisiSelect.innerHTML = '<option value="all">Tüm Personeller</option>';
+                    result.data.forEach(kisi => {
+                        const option = document.createElement('option');
+                        option.value = kisi.kisi_id;
+                        option.innerText = kisi.ad + ' ' + kisi.soyad; 
+                        kisiSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error("Kişi listesi çekilemedi", error);
+            }
+        }
+
+        async function fetchAnalizData() {
+            const yil = document.getElementById('filter-yil').value;
+            const ay = document.getElementById('filter-ay').value;
+            const kisi_id = document.getElementById('filter-kisi').value;
+            const url = `/api/analiz/giris-cikis?yil=${yil}&ay=${ay}&kisi_id=${kisi_id}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('kpi-toplam-cikis').innerText = data.kpi.toplam_cikis || 0;
+                    document.getElementById('kpi-gec-giris').innerText = data.kpi.gec_giris || 0;
+                    document.getElementById('kpi-toplam-giris').innerText = data.kpi.toplam_giris || 0;
+                    document.getElementById('kpi-mola-asimi').innerText = data.kpi.mola_asimi || 0;
+                    document.getElementById('kpi-supheli-gecis').innerText = data.kpi.supheli_gecis || 0;
+                    renderCharts(data);
+                }
+            } catch (error) {
+                console.error("API Hatası:", error);
+            }
+        }
+
+        function renderCharts(data) {
+            if (barChartInstance) barChartInstance.destroy();
+            if (erkenCikisChartInstance) erkenCikisChartInstance.destroy();
+            if (molaAsimiChartInstance) molaAsimiChartInstance.destroy();
+
+           
+
+            const tumGunler = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+            
+            // YENİ: Geç Giriş Hazırlama
+            const tumVakalar = [0, 0, 0, 0, 0, 0, 0];
+            if (data.gecikmeVerileri) {
+                data.gecikmeVerileri.forEach(kayit => {
+                    if (kayit.gun_index >= 0 && kayit.gun_index <= 6) tumVakalar[kayit.gun_index]++;
+                });
+            }
+            const gosterilecekGunler = [];
+            const gosterilecekVakalar = [];
+            for (let i = 0; i < 7; i++) {
+                if (i < 5 || tumVakalar[i] > 0) {
+                    gosterilecekGunler.push(tumGunler[i]);
+                    gosterilecekVakalar.push(tumVakalar[i]);
+                }
+            }
+
+            // 2. Bar Grafik (Geç Giriş)
+            const barCtx = document.getElementById('mesaiGirisChart').getContext('2d');
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: gosterilecekGunler,
+                    datasets: [{
+                        label: 'Geç Kalma Vakası (Adet)',
+                        data: gosterilecekVakalar,
+                        backgroundColor: '#2980b9'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, 
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index; 
+                            const secilenGunIsmi = gosterilecekGunler[index]; 
+                            const gunIndexi = tumGunler.indexOf(secilenGunIsmi); 
+                            const filtrelenmisVeriler = data.gecikmeVerileri.filter(k => k.gun_index === gunIndexi);
+                            tabloModalGoster(secilenGunIsmi + " Günü - Geç Giriş Raporu", filtrelenmisVeriler, 'giris');
+                        }
+                    }
+                }
+            });
+
+            // YENİ: Mola Aşımı Hazırlama
+            const molaVakalar = [0, 0, 0, 0, 0, 0, 0];
+            if (data.molaAsimiVerileri) {
+                data.molaAsimiVerileri.forEach(kayit => {
+                    if (kayit.gun_index >= 0 && kayit.gun_index <= 6) molaVakalar[kayit.gun_index]++;
+                });
+            }
+            const molaGosterilecekGunler = [];
+            const molaGosterilecekVakalar = [];
+            for (let i = 0; i < 7; i++) {
+                if (i < 5 || molaVakalar[i] > 0) {
+                    molaGosterilecekGunler.push(tumGunler[i]);
+                    molaGosterilecekVakalar.push(molaVakalar[i]);
+                }
+            }
+
+            // 3. Bar Grafik (Mola Aşımı)
+            const molaCtx = document.getElementById('molaAsimiChart').getContext('2d');
+            molaAsimiChartInstance = new Chart(molaCtx, {
+                type: 'bar',
+                data: {
+                    labels: molaGosterilecekGunler,
+                    datasets: [{
+                        label: 'Mola Aşımı (Adet)',
+                        data: molaGosterilecekVakalar,
+                        backgroundColor: '#f39c12'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, 
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index; 
+                            const secilenGunIsmi = molaGosterilecekGunler[index]; 
+                            const gunIndexi = tumGunler.indexOf(secilenGunIsmi); 
+                            const filtrelenmisVeriler = data.molaAsimiVerileri.filter(k => k.gun_index === gunIndexi);
+                            tabloModalGoster(secilenGunIsmi + " Günü - Mola Aşımı Raporu", filtrelenmisVeriler, 'mola');
+                        }
+                    }
+                }
+            });
+
+            // YENİ: Erken Çıkış Hazırlama
+            const erkenVakalar = [0, 0, 0, 0, 0, 0, 0];
+            if (data.erkenCikisVerileri) {
+                data.erkenCikisVerileri.forEach(kayit => {
+                    if (kayit.gun_index >= 0 && kayit.gun_index <= 6) erkenVakalar[kayit.gun_index]++;
+                });
+            }
+            const erkenGosterilecekGunler = [];
+            const erkenGosterilecekVakalar = [];
+            for (let i = 0; i < 7; i++) {
+                if (i < 5 || erkenVakalar[i] > 0) {
+                    erkenGosterilecekGunler.push(tumGunler[i]);
+                    erkenGosterilecekVakalar.push(erkenVakalar[i]);
+                }
+            }
+
+            // 4. Bar Grafik (Erken Çıkış)
+            const erkenCtx = document.getElementById('erkenCikisChart').getContext('2d');
+            erkenCikisChartInstance = new Chart(erkenCtx, {
+                type: 'bar',
+                data: {
+                    labels: erkenGosterilecekGunler,
+                    datasets: [{
+                        label: 'Erken Çıkış Vakası (Adet)',
+                        data: erkenGosterilecekVakalar,
+                        backgroundColor: '#e74c3c'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, 
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index; 
+                            const secilenGunIsmi = erkenGosterilecekGunler[index]; 
+                            const gunIndexi = tumGunler.indexOf(secilenGunIsmi); 
+                            const filtrelenmisVeriler = data.erkenCikisVerileri.filter(k => k.gun_index === gunIndexi);
+                            tabloModalGoster(secilenGunIsmi + " Günü - Erken Çıkış Raporu", filtrelenmisVeriler, 'cikis');
+                        }
+                    }
+                }
+            });
+        } 
+
+        // DİNAMİK TABLO MODALI GÖSTERME FONKSİYONU
+        function tabloModalGoster(baslik, veriler, tip = 'giris') {
+            document.getElementById('modal-title').innerText = baslik;
+            const tbody = document.getElementById('modal-tbody');
+            const emptyMsg = document.getElementById('modal-empty-msg');
+            const thead = document.querySelector('#table-modal thead tr');
+            
+            if (tip === 'giris') {
+                thead.innerHTML = `
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Personel</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tarih</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Giriş Saati</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Mesai Başlangıç</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tolerans (Dk)</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-bold text-red-600">Gecikme (Dk)</th>
+                `;
+            } else if (tip === 'cikis') {
+                thead.innerHTML = `
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Personel</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tarih</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Çıkış Saati</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Mesai Bitiş</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-bold text-red-600">Kayıp (Dk)</th>
+                `;
+            } else if (tip === 'mola') {
+                thead.innerHTML = `
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Personel</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tarih</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Dönüş Saati</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Mola Bitiş</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tolerans (Dk)</th>
+                    <th class="py-2 px-4 border-b text-left text-sm font-bold text-red-600">Aşım (Dk)</th>
+                `;
+            }
+
+            tbody.innerHTML = ''; 
+            
+            if (!veriler || veriler.length === 0) {
+                emptyMsg.classList.remove('hidden');
+            } else {
+                emptyMsg.classList.add('hidden');
+                veriler.forEach(satir => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50 transition border-b";
+                    
+                    let planlanan = tip === 'giris' ? satir.mesai_giris : (tip === 'cikis' ? satir.mesai_cikis : satir.mola_bitis);
+                    let farkDk = tip === 'giris' ? satir.gecikme_dakikasi : (tip === 'cikis' ? satir.erken_cikis_dakikasi : satir.asim_dakikasi);
+                    
+                    let toleransTd = tip !== 'cikis' ? `<td class="py-2 px-4 border-b text-gray-500">${satir.tolerans}</td>` : '';
+
+                    tr.innerHTML = `
+                        <td class="py-2 px-4 border-b">${satir.ad} ${satir.soyad}</td>
+                        <td class="py-2 px-4 border-b">${satir.tarih}</td>
+                        <td class="py-2 px-4 border-b font-semibold">${satir.basilan_saat}</td>
+                        <td class="py-2 px-4 border-b text-gray-500">${planlanan}</td>
+                        ${toleransTd}
+                        <td class="py-2 px-4 border-b font-bold text-red-600">${farkDk} dk</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            
+            document.getElementById('table-modal').classList.remove('hidden');
+        }
+
+        // Dashboard kapatma fonksiyonu
+        function closeDashboard() {
+            document.getElementById('dashboard-container').classList.add('hidden');
+        }
+    </script>
+
+    <!-- Excel Tarzı Detay Modalı -->
+    <div id="table-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex justify-center items-center">
+        <div class="bg-white w-11/12 max-w-5xl rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="bg-[#2980b9] text-white px-6 py-4 flex justify-between items-center">
+                <h3 id="modal-title" class="font-bold text-lg">Detay Raporu</h3>
+                <button onclick="document.getElementById('table-modal').classList.add('hidden')" class="text-white hover:text-red-200 font-bold text-xl">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <table class="min-w-full bg-white border border-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Personel</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tarih</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Giriş Saati</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Mesai Başlangıç</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-semibold text-gray-700">Tolerans (Dk)</th>
+                            <th class="py-2 px-4 border-b text-left text-sm font-bold text-red-600">Gecikme (Dk)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-tbody" class="text-sm text-gray-600">
+                        <!-- Javascript ile dolacak -->
+                    </tbody>
+                </table>
+                <div id="modal-empty-msg" class="hidden text-center py-6 text-gray-500 font-semibold">Bu güne ait kayıt bulunmamaktadır.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

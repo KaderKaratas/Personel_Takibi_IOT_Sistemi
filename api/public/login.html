@@ -1,0 +1,167 @@
+<!-- <!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Sisteme Giriş</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; margin: 0; }
+        .login-kutu { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); width: 300px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #1a252f; }
+    </style>
+</head>
+<body>
+
+<div class="login-kutu">
+    <h2 style="text-align: center; color: #333;">Yönetim Paneli</h2>
+    
+    <!-- Form verileri Router'daki /api/auth/login adresine gidecek 
+    <form method="POST" action="/api/auth/login">
+        <label>E-Posta Adresi</label>
+        <input type="email" name="e_posta" required autocomplete="off">
+        
+        <label>Şifre</label>
+        <input type="password" name="sifre" required>
+        
+        <button type="submit">Giriş Yap</button>
+    </form>
+</div>
+
+
+</body>
+</html> -->
+
+
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTS - Personel Takip Sistemi</title>
+    
+    <!-- Bootstrap 5 CSS (Hızlı ızgara ve tab yapıları için) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- KENDİ YAZDIĞIMIZ HARİCİ CSS DOSYASI -->
+    <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+
+    <div class="login-container">
+        <!-- SOL TARAF: Kurumsal Alan & İllüstrasyon/Yazı -->
+        <div class="left-pane d-none d-lg-flex">
+            <div class="mb-5">
+                <h1 class="fw-bold text-warning" style="font-size: 3.5rem; letter-spacing: 2px;">PTS</h1>
+                <p class="text-white-50 text-uppercase tracking-widest fw-bold">Personel Takip Sistemi</p>
+            </div>
+            
+            <div class="mt-4">
+                <h3 class="fw-bold mb-3">HOŞ GELDİNİZ!</h3>
+                <p class="text-light opacity-75 px-4" style="font-size: 1.1rem; line-height: 1.6;">
+                    Web Panel Yönetimine Giriş Yapın.<br>
+                    İş süreçlerinizi güvenle ve verimli yönetin.
+                </p>
+            </div>
+        </div>
+
+        <!-- SAĞ TARAF: Form Kartı -->
+        <div class="right-pane">
+            <div class="login-card">
+                
+                <!-- Sekmeler -->
+                <ul class="nav nav-tabs nav-fill mb-4" id="loginTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="yonetici-tab" data-bs-toggle="tab" data-bs-target="#yonetici" type="button" role="tab">YÖNETİCİ GİRİŞİ</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="yetkili-tab" data-bs-toggle="tab" data-bs-target="#yetkili" type="button" role="tab">YETKİLİ GİRİŞİ</button>
+                    </li>
+                </ul>
+
+                <h5 class="text-center mb-4 fw-bold text-dark">Lütfen Giriş Yapın</h5>
+
+                <!-- Form doğrudan senin backend rotana POST atacak -->
+                <form id="loginForm">
+                    <!-- Kullanıcının hangi sekmeden giriş yaptığını backend'e gönderecek gizli alan -->
+                    <input type="hidden" name="giris_tipi" id="giris_tipi" value="yonetici">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">E-posta Adresi</label>
+                        <!-- name="e_posta" olarak güncellendi -->
+                        <input type="email" name="e_posta" class="form-control py-2" placeholder="ornek@firma.com" required autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Şifre</label>
+                        <!-- name="sifre" eklendi -->
+                        <input type="password" name="sifre" class="form-control py-2" placeholder="••••••••" required>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4 small">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="beniHatirla">
+                            <label class="form-check-label text-secondary" for="beniHatirla">Beni Hatırla</label>
+                        </div>
+                        <a href="#" class="text-decoration-none text-primary fw-semibold">Şifremi Unuttum?</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm">GİRİŞ YAP</button>
+                </form>
+
+                <div class="text-center mt-4 small text-secondary">
+                    Hesabınız yok mu? Lütfen <a href="#" class="text-primary text-decoration-none fw-bold">Yöneticiye başvurun.</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS (Sekmelerin çalışması için) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // 1. SEKME (TAB) DEĞİŞİMİNİ YAKALAYAN KOD (Bunu silmiyoruz)
+    const yoneticiTab = document.getElementById('yonetici-tab');
+    const yetkiliTab = document.getElementById('yetkili-tab');
+    const girisTipiInput = document.getElementById('giris_tipi');
+
+    yoneticiTab.addEventListener('click', () => {
+        girisTipiInput.value = 'yonetici';
+    });
+
+    yetkiliTab.addEventListener('click', () => {
+        girisTipiInput.value = 'yetkili';
+    });
+
+    // 2. FORMU BEYAZ SAYFAYA DÜŞMEDEN GÖNDEREN KOD (Yeni eklediğimiz)
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault(); // Sayfanın yenilenmesini engeller
+        
+        const e_posta = document.querySelector('input[name="e_posta"]').value;
+        const sifre = document.querySelector('input[name="sifre"]').value;
+        const giris_tipi = document.getElementById('giris_tipi').value;
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ e_posta, sifre, giris_tipi })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Giriş başarılıysa backend'den gelen URL'ye yönlendir
+                window.location.href = result.redirectUrl; 
+            } else {
+                // Hata varsa aynı sayfada uyarı (alert) olarak göster
+                alert(result.message); 
+            }
+        } catch (err) {
+            alert('Sunucu ile iletişim kurulamadı.');
+        }
+    });
+
+</script>
+   
+</body>
+</html>
