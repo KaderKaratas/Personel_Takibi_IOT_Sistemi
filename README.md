@@ -5,7 +5,6 @@ Bu proje, donanım (NodeMCU) ve yazılım (Node.js & MySQL) bileşenlerinin ente
 ## 🚀 Temel Özellikler
 
 - **Akıllı Kart Okuma:** RDM6300 RFID modülü ile personellerin sisteme hızlı ve güvenli şekilde kaydedilmesi.
-- **Güvenlik ve İzleme:** MQ2 gaz sensörü ile ortamdaki gaz kaçaklarının tespiti ve OLED ekran ile buzzer üzerinden anlık geri bildirimler.
 - **RESTful API Mimarisi:** Node.js ve Express framework kullanılarak geliştirilmiş, MVC yapısına uygun (Router & Controller) modüler API altyapısı.
 - **Veri Kaydı ve Analizi:** Kart verilerinin MySQL veritabanına `GIRIS` ve `CIKIS` statüleri ile anlık olarak işlenmesi.
 - **Yetkili Yönetim Paneli:** HTML, CSS ve Vanilla JS ile tasarlanmış arayüz üzerinden personel yönetimi, kart atama, izin/mazeret işlemleri ve Chart.js destekli analiz grafikleri.
@@ -15,7 +14,6 @@ Bu proje, donanım (NodeMCU) ve yazılım (Node.js & MySQL) bileşenlerinin ente
 ### Donanım (IoT)
 - NodeMCU ESP8266
 - RDM6300 RFID Okuyucu Modülü
-- MQ2 Gaz Sensörü
 - SSD1306 OLED Ekran
 - Buzzer
 
